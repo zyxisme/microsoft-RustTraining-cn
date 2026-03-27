@@ -1,21 +1,20 @@
-# Windows and Conditional Compilation 🟡
+# Windows 和条件编译 🟡
 
-> **What you'll learn:**
-> - Windows support patterns: `windows-sys`/`windows` crates, `cargo-xwin`
-> - Conditional compilation with `#[cfg]` — checked by the compiler, not the preprocessor
-> - Platform abstraction architecture: when `#[cfg]` blocks suffice vs when to use traits
-> - Cross-compiling for Windows from Linux
+> **你将学到：**
+> - Windows 支持模式：`windows-sys`/`windows` crate、`cargo-xwin`
+> - 使用 `#[cfg]` 进行条件编译 — 由编译器检查，而非预处理器
+> - 平台抽象架构：何时 `#[cfg]` 块足够 vs 何时使用 traits
+> - 从 Linux 交叉编译到 Windows
 >
-> **Cross-references:** [`no_std` & Features](ch09-no-std-and-feature-verification.md) — `cargo-hack` and feature verification · [Cross-Compilation](ch02-cross-compilation-one-source-many-target.md) — general cross-build setup · [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) — `cfg` flags emitted by `build.rs`
+> **交叉引用：** [`no_std` 和特性](ch09-no-std-and-feature-verification.md) — `cargo-hack` 和特性验证 · [交叉编译](ch02-cross-compilation-one-source-many-target.md) — 一般交叉构建设置 · [构建脚本](ch01-build-scripts-buildrs-in-depth.md) — `build.rs` 发出的 `cfg` 标志
 
-### Windows Support — Platform Abstractions
+### Windows 支持 — 平台抽象
 
-Rust's `#[cfg()]` attributes and Cargo features allow a single codebase to
-target both Linux and Windows cleanly. The project already
-demonstrates this pattern in `platform::run_command`:
+Rust 的 `#[cfg()]` 属性和 Cargo 特性允许单一代码库干净地同时面向 Linux 和 Windows。
+该项目在 `platform::run_command` 中已经演示了这个模式：
 
 ```rust
-// Real pattern from the project — platform-specific shell invocation
+// 项目中的真实模式 — 平台特定的 shell 调用
 pub fn exec_cmd(cmd: &str, timeout_secs: Option<u64>) -> Result<CommandResult, CommandError> {
     #[cfg(windows)]
     let mut child = Command::new("cmd")
@@ -31,50 +30,50 @@ pub fn exec_cmd(cmd: &str, timeout_secs: Option<u64>) -> Result<CommandResult, C
         .stderr(Stdio::piped())
         .spawn()?;
 
-    // ... rest is platform-independent ...
+    // ... 其余是平台无关的 ...
 }
 ```
 
-**Available `cfg` predicates:**
+**可用的 `cfg` 谓词：**
 
 ```rust
-// Operating system
-#[cfg(target_os = "linux")]         // Linux specifically
+// 操作系统
+#[cfg(target_os = "linux")]         // 专门针对 Linux
 #[cfg(target_os = "windows")]       // Windows
 #[cfg(target_os = "macos")]         // macOS
-#[cfg(unix)]                        // Linux, macOS, BSDs, etc.
-#[cfg(windows)]                     // Windows (shorthand)
+#[cfg(unix)]                        // Linux、macOS、BSD 等
+#[cfg(windows)]                     // Windows（简写）
 
-// Architecture
-#[cfg(target_arch = "x86_64")]      // x86 64-bit
-#[cfg(target_arch = "aarch64")]     // ARM 64-bit
-#[cfg(target_arch = "x86")]         // x86 32-bit
+// 架构
+#[cfg(target_arch = "x86_64")]      // x86 64 位
+#[cfg(target_arch = "aarch64")]     // ARM 64 位
+#[cfg(target_arch = "x86")]         // x86 32 位
 
-// Pointer width (portable alternative to arch)
-#[cfg(target_pointer_width = "64")] // Any 64-bit platform
-#[cfg(target_pointer_width = "32")] // Any 32-bit platform
+// 指针宽度（架构的可移植替代）
+#[cfg(target_pointer_width = "64")] // 任何 64 位平台
+#[cfg(target_pointer_width = "32")] // 任何 32 位平台
 
-// Environment / C library
+// 环境 / C 库
 #[cfg(target_env = "gnu")]          // glibc
 #[cfg(target_env = "musl")]         // musl libc
-#[cfg(target_env = "msvc")]         // MSVC on Windows
+#[cfg(target_env = "msvc")]         // Windows 上的 MSVC
 
-// Endianness
+// 字节序
 #[cfg(target_endian = "little")]
 #[cfg(target_endian = "big")]
 
-// Combinations with any(), all(), not()
+// 与 any()、all()、not() 组合
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[cfg(not(windows))]
 ```
 
-### The `windows-sys` and `windows` Crates
+### `windows-sys` 和 `windows` Crate
 
-For calling Windows APIs directly:
+用于直接调用 Windows API：
 
 ```toml
-# Cargo.toml — use windows-sys for raw FFI (lighter, no abstraction)
+# Cargo.toml — 使用 windows-sys 进行原始 FFI（更轻量，无抽象）
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
@@ -82,12 +81,11 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Registry",
     "Win32_System_Power",
 ] }
-# NOTE: windows-sys uses semver-incompatible releases (0.48 → 0.52 → 0.59).
-# Pin to a single minor version — each release may remove or rename API bindings.
-# Check https://github.com/microsoft/windows-rs for the latest version
-# before starting a new project.
+# 注意：windows-sys 使用不符合 semver 的版本（0.48 → 0.52 → 0.59）。
+# 固定到单个次版本 — 每个版本可能删除或重命名 API 绑定。
+# 在开始新项目之前检查 https://github.com/microsoft/windows-rs 获取最新版本。
 
-# Or use the windows crate for safe wrappers (heavier, more ergonomic)
+# 或使用 windows crate 获取安全包装器（更重，更符合人体工程学）
 # windows = { version = "0.59", features = [...] }
 ```
 
@@ -101,8 +99,8 @@ mod win {
 
     pub fn get_battery_status() -> Option<u8> {
         let mut status = SYSTEM_POWER_STATUS::default();
-        // SAFETY: GetSystemPowerStatus writes to the provided buffer.
-        // The buffer is correctly sized and aligned.
+        // SAFETY: GetSystemPowerStatus 写入提供的缓冲区。
+        // 缓冲区大小和对齐正确。
         let ok = unsafe { GetSystemPowerStatus(&mut status) };
         if ok != 0 {
             Some(status.BatteryLifePercent)
@@ -113,53 +111,53 @@ mod win {
 }
 ```
 
-**`windows-sys` vs `windows` crate:**
+**`windows-sys` vs `windows` crate：**
 
-| Aspect | `windows-sys` | `windows` |
+| 方面 | `windows-sys` | `windows` |
 |--------|---------------|----------|
-| API style | Raw FFI (`unsafe` calls) | Safe Rust wrappers |
-| Binary size | Minimal (just extern declarations) | Larger (wrapper code) |
-| Compile time | Fast | Slower |
-| Ergonomics | C-style, manual safety | Rust-idiomatic |
-| Error handling | Raw `BOOL` / `HRESULT` | `Result<T, windows::core::Error>` |
-| Use when | Performance-critical, thin wrapper | Application code, ease of use |
+| API 风格 | 原始 FFI（`unsafe` 调用） | 安全 Rust 包装器 |
+| 二进制文件大小 | 最小（只是 extern 声明） | 更大（包装器代码） |
+| 编译时间 | 快 | 更慢 |
+| 人体工程学 | C 风格，手动安全 | 符合 Rust 习惯 |
+| 错误处理 | 原始 `BOOL` / `HRESULT` | `Result<T, windows::core::Error>` |
+| 何时使用 | 性能关键，薄包装器 | 应用程序代码，易用性 |
 
-### Cross-Compiling for Windows from Linux
+### 从 Linux 交叉编译到 Windows
 
 ```bash
-# Option 1: MinGW (GNU ABI)
+# 选项 1：MinGW（GNU ABI）
 rustup target add x86_64-pc-windows-gnu
 sudo apt install gcc-mingw-w64-x86-64
 cargo build --target x86_64-pc-windows-gnu
-# Produces a .exe — runs on Windows, links against msvcrt
+# 生成 .exe — 在 Windows 上运行，链接到 msvcrt
 
-# Option 2: MSVC ABI via xwin (for full MSVC compatibility)
+# 选项 2：通过 xwin 的 MSVC ABI（完全 MSVC 兼容性）
 cargo install cargo-xwin
 cargo xwin build --target x86_64-pc-windows-msvc
-# Uses Microsoft's CRT and SDK headers downloaded automatically
+# 使用自动下载的 Microsoft CRT 和 SDK 头文件
 
-# Option 3: Zig-based cross-compilation
+# 选项 3：基于 Zig 的交叉编译
 cargo zigbuild --target x86_64-pc-windows-gnu
 ```
 
-**GNU vs MSVC ABI on Windows:**
+**Windows 上的 GNU vs MSVC ABI：**
 
-| Aspect | `x86_64-pc-windows-gnu` | `x86_64-pc-windows-msvc` |
+| 方面 | `x86_64-pc-windows-gnu` | `x86_64-pc-windows-msvc` |
 |--------|-------------------------|---------------------------|
-| Linker | MinGW `ld` | MSVC `link.exe` or `lld-link` |
-| C runtime | `msvcrt.dll` (universal) | `ucrtbase.dll` (modern) |
-| C++ interop | GCC ABI | MSVC ABI |
-| Cross-compile from Linux | Easy (MinGW) | Possible (`cargo-xwin`) |
-| Windows API support | Full | Full |
-| Debug info format | DWARF | PDB |
-| Recommended for | Simple tools, CI builds | Full Windows integration |
+| 链接器 | MinGW `ld` | MSVC `link.exe` 或 `lld-link` |
+| C 运行时 | `msvcrt.dll`（通用） | `ucrtbase.dll`（现代） |
+| C++ 互操作 | GCC ABI | MSVC ABI |
+| 从 Linux 交叉编译 | 简单（MinGW） | 可能（`cargo-xwin`） |
+| Windows API 支持 | 完整 | 完整 |
+| 调试信息格式 | DWARF | PDB |
+| 推荐用于 | 简单工具、CI 构建 | 完全 Windows 集成 |
 
-### Conditional Compilation Patterns
+### 条件编译模式
 
-**Pattern 1: Platform module selection**
+**模式 1：平台模块选择**
 
 ```rust
-// src/platform/mod.rs — compile different modules per OS
+// src/platform/mod.rs — 每个 OS 编译不同模块
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
@@ -170,34 +168,34 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::*;
 
-// Both modules implement the same public API:
+// 两个模块实现相同的公共 API：
 // pub fn get_cpu_temperature() -> Result<f64, PlatformError>
 // pub fn list_pci_devices() -> Result<Vec<PciDevice>, PlatformError>
 ```
 
-**Pattern 2: Feature-gated platform support**
+**模式 2：特性门控平台支持**
 
 ```toml
 # Cargo.toml
 [features]
 default = ["linux"]
-linux = []              # Linux-specific hardware access
-windows = ["dep:windows-sys"]  # Windows-specific APIs
+linux = []              # Linux 特定硬件访问
+windows = ["dep:windows-sys"]  # Windows 特定 API
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [...], optional = true }
 ```
 
 ```rust
-// Compile error if someone tries to build for Windows without the feature:
+// 如果有人尝试在没有特性的情况下为 Windows 构建，编译错误：
 #[cfg(all(target_os = "windows", not(feature = "windows")))]
 compile_error!("Enable the 'windows' feature to build for Windows");
 ```
 
-**Pattern 3: Trait-based platform abstraction**
+**模式 3：基于 trait 的平台抽象**
 
 ```rust
-/// Platform-independent interface for hardware access.
+/// 硬件访问的平台无关接口。
 pub trait HardwareAccess {
     type Error: std::error::Error;
 
@@ -215,7 +213,7 @@ impl HardwareAccess for LinuxHardware {
     type Error = LinuxHwError;
 
     fn read_cpu_temperature(&self) -> Result<f64, Self::Error> {
-        // Read from /sys/class/thermal/thermal_zone0/temp
+        // 从 /sys/class/thermal/thermal_zone0/temp 读取
         let raw = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")?;
         Ok(raw.trim().parse::<f64>()? / 1000.0)
     }
@@ -230,13 +228,13 @@ impl HardwareAccess for WindowsHardware {
     type Error = WindowsHwError;
 
     fn read_cpu_temperature(&self) -> Result<f64, Self::Error> {
-        // Read via WMI (Win32_TemperatureProbe) or Open Hardware Monitor
+        // 通过 WMI (Win32_TemperatureProbe) 或 Open Hardware Monitor 读取
         todo!("WMI temperature query")
     }
     // ...
 }
 
-/// Create the platform-appropriate implementation
+/// 创建平台适当的实现
 pub fn create_hardware() -> impl HardwareAccess {
     #[cfg(target_os = "linux")]
     { LinuxHardware }
@@ -245,22 +243,22 @@ pub fn create_hardware() -> impl HardwareAccess {
 }
 ```
 
-### Platform Abstraction Architecture
+### 平台抽象架构
 
-For a project that targets multiple platforms, organize code into three layers:
+对于面向多个平台的项目，将代码组织成三层：
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│ Application Logic (platform-independent)          │
-│  diag_tool, accel_diag, network_diag, event_log, etc.      │
-│  Uses only the platform abstraction trait          │
+│ 应用程序逻辑（平台无关）                               │
+│  diag_tool, accel_diag, network_diag, event_log, 等.     │
+│  只使用平台抽象 trait                                │
 ├──────────────────────────────────────────────────┤
-│ Platform Abstraction Layer (trait definitions)    │
-│  trait HardwareAccess { ... }                     │
+│ 平台抽象层（trait 定义）                              │
+│  trait HardwareAccess { ... }                      │
 │  trait CommandRunner { ... }                      │
 │  trait FileSystem { ... }                         │
 ├──────────────────────────────────────────────────┤
-│ Platform Implementations (cfg-gated)              │
+│ 平台实现（cfg 门控）                                  │
 │  ┌──────────────┐  ┌──────────────┐              │
 │  │ Linux impl   │  │ Windows impl │              │
 │  │ /sys, /proc  │  │ WMI, Registry│              │
@@ -270,7 +268,7 @@ For a project that targets multiple platforms, organize code into three layers:
 └──────────────────────────────────────────────────┘
 ```
 
-**Testing the abstraction**: Mock the platform trait for unit tests:
+**测试抽象**：为单元测试 mock 平台 trait：
 
 ```rust
 #[cfg(test)]
@@ -299,7 +297,7 @@ mod tests {
         }
 
         fn list_pci_devices(&self) -> Result<Vec<PciDevice>, Self::Error> {
-            Ok(vec![]) // Mock returns empty
+            Ok(vec![]) // Mock 返回空
         }
 
         fn send_ipmi_command(&self, _cmd: &IpmiCmd) -> Result<IpmiResponse, Self::Error> {
@@ -319,87 +317,86 @@ mod tests {
 }
 ```
 
-### Application: Linux-First, Windows-Ready
+### 应用：Linux 优先，Windows 就绪
 
-The project is already partially Windows-ready. Use
-[`cargo-hack`](ch09-no-std-and-feature-verification.md) to verify all feature
-combinations, and [cross-compile](ch02-cross-compilation-one-source-many-target.md)
-to test on Windows from Linux:
+该项目已经部分 Windows 就绪。使用
+[`cargo-hack`](ch09-no-std-and-feature-verification.md) 验证所有特性组合，
+并从 [交叉编译](ch02-cross-compilation-one-source-many-target.md) 在 Linux 上测试 Windows：
 
-**Already done:**
-- `platform::run_command` uses `#[cfg(windows)]` for shell selection
-- Tests use `#[cfg(windows)]` / `#[cfg(not(windows))]` for platform-appropriate
-  test commands
+**已完成：**
+- `platform::run_command` 使用 `#[cfg(windows)]` 进行 shell 选择
+- 测试使用 `#[cfg(windows)]` / `#[cfg(not(windows))]` 进行平台适当的测试命令
 
-**Recommended evolution path for Windows support:**
+**Windows 支持的建议演进路径：**
 
 ```text
-Phase 1: Extract platform abstraction trait (current → 2 weeks)
-  ├─ Define HardwareAccess trait in core_lib
-  ├─ Wrap current Linux code behind LinuxHardware impl
-  └─ All diagnostic modules depend on trait, not Linux specifics
+阶段 1：提取平台抽象 trait（当前 → 2 周）
+  ├─ 在 core_lib 中定义 HardwareAccess trait
+  ├─ 将当前 Linux 代码包装在 LinuxHardware impl 后面
+  └─ 所有诊断模块依赖 trait，而非 Linux 特定
 
-Phase 2: Add Windows stubs (2 weeks)
-  ├─ Implement WindowsHardware with TODO stubs
-  ├─ CI builds for x86_64-pc-windows-msvc (compile check only)
-  └─ Tests pass with MockHardware on all platforms
+阶段 2：添加 Windows 存根（2 周）
+  ├─ 用 TODO 存根实现 WindowsHardware
+  ├─ CI 为 x86_64-pc-windows-msvc 构建（仅编译检查）
+  └─ 测试在所有平台上通过 MockHardware
 
-Phase 3: Windows implementation (ongoing)
-  ├─ IPMI via ipmiutil.exe or OpenIPMI Windows driver
-  ├─ GPU via accel-mgmt (accel-api.dll) — same API as Linux
-  ├─ PCIe via Windows Setup API (SetupDiEnumDeviceInfo)
-  └─ NIC via WMI (Win32_NetworkAdapter)
+阶段 3：Windows 实现（进行中）
+  ├─ 通过 ipmiutil.exe 或 OpenIPMI Windows 驱动程序的 IPMI
+  ├─ 通过 accel-mgmt (accel-api.dll) 的 GPU — 与 Linux 相同的 API
+  ├─ 通过 Windows Setup API (SetupDiEnumDeviceInfo) 的 PCIe
+  └─ 通过 WMI (Win32_NetworkAdapter) 的 NIC
 ```
 
-**Cross-platform CI addition:**
+**跨平台 CI 添加：**
 
 ```yaml
-# Add to CI matrix
+# 添加到 CI 矩阵
 - target: x86_64-pc-windows-msvc
   os: windows-latest
   name: windows-x86_64
 ```
 
-This ensures the codebase compiles on Windows even before full Windows
-implementation is complete — catching `cfg` mistakes early.
+这确保代码库即使在完整的 Windows 实现完成之前也能在 Windows 上编译 —
+及早捕获 `cfg` 错误。
 
-> **Key insight**: The abstraction doesn't need to be perfect on day one.
-> Start with `#[cfg]` blocks in leaf functions (like `exec_cmd` already does),
-> then refactor to traits when you have two or more platform implementations.
-> Premature abstraction is worse than `#[cfg]` blocks.
+> **关键见解**：抽象在第一天不需要是完美的。
+> 从叶函数中的 `#[cfg]` 块开始（如 `exec_cmd` 已经做的），
+> 然后当有两个或更多平台实现时重构为 traits。
+> 过早抽象比 `#[cfg]` 块更糟糕。
 
-### Conditional Compilation Decision Tree
+### 条件编译决策树
 
 ```mermaid
 flowchart TD
     START["Platform-specific code?"] --> HOW_MANY{"How many platforms?"}
-    
+
     HOW_MANY -->|"2 (Linux + Windows)"| CFG_BLOCKS["#[cfg] blocks\nin leaf functions"]
     HOW_MANY -->|"3+"| TRAIT_APPROACH["Platform trait\n+ per-platform impl"]
-    
+
     CFG_BLOCKS --> WINAPI{"Need Windows APIs?"}
     WINAPI -->|"Minimal"| WIN_SYS["windows-sys\nRaw FFI bindings"]
     WINAPI -->|"Rich (COM, etc)"| WIN_RS["windows crate\nSafe idiomatic wrappers"]
     WINAPI -->|"None\n(just #[cfg])"| NATIVE["cfg(windows)\ncfg(unix)"]
-    
+
     TRAIT_APPROACH --> CI_CHECK["cargo-hack\n--each-feature"]
     CFG_BLOCKS --> CI_CHECK
     CI_CHECK --> XCOMPILE["Cross-compile in CI\ncargo-xwin or\nnative runners"]
-    
+
     style CFG_BLOCKS fill:#91e5a3,color:#000
     style TRAIT_APPROACH fill:#ffd43b,color:#000
     style WIN_SYS fill:#e3f2fd,color:#000
     style WIN_RS fill:#e3f2fd,color:#000
 ```
 
-### 🏋️ Exercises
+### 🏋️ 练习
 
-#### 🟢 Exercise 1: Platform-Conditional Module
+#### 🟢 练习 1：平台条件模块
 
-Create a module with `#[cfg(unix)]` and `#[cfg(windows)]` implementations of a `get_hostname()` function. Verify both compile with `cargo check` and `cargo check --target x86_64-pc-windows-msvc`.
+创建一个带有 `#[cfg(unix)]` 和 `#[cfg(windows)]` 实现的 `get_hostname()` 函数模块。
+用 `cargo check` 和 `cargo check --target x86_64-pc-windows-msvc` 验证两者都编译。
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```rust
 // src/hostname.rs
@@ -431,44 +428,45 @@ mod tests {
 ```
 
 ```bash
-# Verify Linux compilation
+# 验证 Linux 编译
 cargo check
 
-# Verify Windows compilation (cross-check)
+# 验证 Windows 编译（交叉检查）
 rustup target add x86_64-pc-windows-msvc
 cargo check --target x86_64-pc-windows-msvc
 ```
 </details>
 
-#### 🟡 Exercise 2: Cross-Compile for Windows with cargo-xwin
+#### 🟡 练习 2：使用 cargo-xwin 交叉编译到 Windows
 
-Install `cargo-xwin` and build a simple binary for `x86_64-pc-windows-msvc` from Linux. Verify the output is a `.exe`.
+安装 `cargo-xwin` 并从 Linux 为 `x86_64-pc-windows-msvc` 构建一个简单二进制文件。
+验证输出是 `.exe`。
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```bash
 cargo install cargo-xwin
 rustup target add x86_64-pc-windows-msvc
 
 cargo xwin build --release --target x86_64-pc-windows-msvc
-# Downloads Windows SDK headers/libs automatically
+# 自动下载 Windows SDK 头文件/库
 
 file target/x86_64-pc-windows-msvc/release/my-binary.exe
 # Output: PE32+ executable (console) x86-64, for MS Windows
 
-# You can also test with Wine:
+# 你也可以用 Wine 测试：
 wine target/x86_64-pc-windows-msvc/release/my-binary.exe
 ```
 </details>
 
-### Key Takeaways
+### 关键要点
 
-- Start with `#[cfg]` blocks in leaf functions; refactor to traits only when three or more platforms diverge
-- `windows-sys` is for raw FFI; the `windows` crate provides safe, idiomatic wrappers
-- `cargo-xwin` cross-compiles to Windows MSVC ABI from Linux — no Windows machine needed
-- Always check `--target x86_64-pc-windows-msvc` in CI even if you only ship on Linux
-- Combine `#[cfg]` with Cargo features for optional platform support (e.g., `feature = "windows"`)
+- 从叶函数中的 `#[cfg]` 块开始；只有当三个或更多平台分化时才重构为 traits
+- `windows-sys` 用于原始 FFI；`windows` crate 提供安全的、符合习惯的包装器
+- `cargo-xwin` 从 Linux 交叉编译到 Windows MSVC ABI — 无需 Windows 机器
+- 即使你只在 Linux 上发布，始终在 CI 中检查 `--target x86_64-pc-windows-msvc`
+- 将 `#[cfg]` 与 Cargo 特性结合用于可选平台支持（例如 `feature = "windows"`）
 
 ---
 

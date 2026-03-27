@@ -1,90 +1,87 @@
-# Compile-Time and Developer Tools 🟡
+# 编译时和开发者工具 🟡
 
-> **What you'll learn:**
-> - Compilation caching with `sccache` for local and CI builds
-> - Faster linking with `mold` (3-10× faster than the default linker)
-> - `cargo-nextest`: a faster, more informative test runner
-> - Developer visibility tools: `cargo-expand`, `cargo-geiger`, `cargo-watch`
-> - Workspace lints, MSRV policy, and documentation-as-CI
+> **你将学到：**
+> - 使用 `sccache` 进行本地和 CI 构建的编译缓存
+> - 使用 `mold` 进行更快链接（比默认链接器快 3-10 倍）
+> - `cargo-nextest`：更快、更多信息量的测试运行器
+> - 开发者可见性工具：`cargo-expand`、`cargo-geiger`、`cargo-watch`
+> - 工作空间 lint、MSRV 策略和文档即 CI
 >
-> **Cross-references:** [Release Profiles](ch07-release-profiles-and-binary-size.md) — LTO and binary size optimization · [CI/CD Pipeline](ch11-putting-it-all-together-a-production-cic.md) — these tools integrate into your pipeline · [Dependencies](ch06-dependency-management-and-supply-chain-s.md) — fewer deps = faster compiles
+> **交叉引用：** [发布 Profiles](ch07-release-profiles-and-binary-size.md) — LTO 和二进制文件大小优化 · [CI/CD 流水线](ch11-putting-it-all-together-a-production-cic.md) — 这些工具集成到你的流水线中 · [依赖管理](ch06-dependency-management-and-supply-chain-s.md) — 更少的依赖 = 更快的编译
 
-### Compile-Time Optimization: sccache, mold, cargo-nextest
+长编译时间是 Rust 中排名第一的开发者痛点。这些工具加起来可以减少 50-80% 的迭代时间：
 
-Long compile times are the #1 developer pain point in Rust. These tools
-collectively can cut iteration time by 50-80%:
+### 编译时优化：sccache、mold、cargo-nextest
 
-**`sccache` — Shared compilation cache:**
+**`sccache` — 共享编译缓存：**
 
 ```bash
-# Install
+# 安装
 cargo install sccache
 
-# Configure as the Rust wrapper
+# 配置为 Rust 包装器
 export RUSTC_WRAPPER=sccache
 
-# Or set permanently in .cargo/config.toml:
+# 或在 .cargo/config.toml 中永久设置：
 # [build]
 # rustc-wrapper = "sccache"
 
-# First build: normal speed (populates cache)
-cargo build --release  # 3 minutes
+# 第一次构建：正常速度（填充缓存）
+cargo build --release  # 3 分钟
 
-# Clean + rebuild: cache hits for unchanged crates
-cargo clean && cargo build --release  # 45 seconds
+# 清理 + 重建：未更改 crate 的缓存命中
+cargo clean && cargo build --release  # 45 秒
 
-# Check cache statistics
+# 检查缓存统计
 sccache --show-stats
 # Compile requests        1,234
 # Cache hits               987 (80%)
 # Cache misses             247
 ```
 
-`sccache` supports shared caches (S3, GCS, Azure Blob) for team-wide and CI
-cache sharing.
+`sccache` 支持共享缓存（S3、GCS、Azure Blob）以实现团队范围和 CI 缓存共享。
 
-**`mold` — A faster linker:**
+**`mold` — 更快的链接器：**
 
-Linking is often the slowest phase. `mold` is 3-5× faster than `lld` and
-10-20× faster than the default GNU `ld`:
+链接通常是最慢的阶段。`mold` 比 `lld` 快 3-5 倍，比默认 GNU `ld` 快 10-20 倍：
 
 ```bash
-# Install
+# 安装
 sudo apt install mold  # Ubuntu 22.04+
-# Note: mold is for ELF targets (Linux). macOS uses Mach-O, not ELF.
-# The macOS linker (ld64) is already quite fast; if you need faster:
-# brew install sold     # sold = mold for Mach-O (experimental, less mature)
-# In practice, macOS link times are rarely a bottleneck.
+# 注意：mold 用于 ELF 目标（Linux）。macOS 使用 Mach-O，不是 ELF。
+# macOS 链接器（ld64）已经相当快；如果需要更快：
+# brew install sold     # sold = Mach-O 的 mold（实验性，不太成熟）
+# 实际上，macOS 链接时间很少是瓶颈。
 
-# Use mold for linking
+# 使用 mold 进行链接
 # .cargo/config.toml
 [target.x86_64-unknown-linux-gnu]
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
-# Verify mold is being used
+# 验证 mold 正在使用
 cargo build -v 2>&1 | grep mold
 ```
 
-**`cargo-nextest` — A faster test runner:**
+**`cargo-nextest` — 更快的测试运行器：**
 
 ```bash
-# Install
+# 安装
 cargo install cargo-nextest
 
-# Run tests (parallel by default, per-test timeout, retry)
+# 运行测试（默认并行，每个测试超时，重试）
 cargo nextest run
 
-# Key advantages over cargo test:
-# - Each test runs in its own process → better isolation
-# - Parallel execution with smart scheduling
-# - Per-test timeouts (no more hanging CI)
-# - JUnit XML output for CI
-# - Retry failed tests
+# 相对于 cargo test 的关键优势：
+# - 每个测试在自己的进程中运行 → 更好的隔离
+# - 具有智能调度的并行执行
+# - 每个测试超时（不再有挂起的 CI）
+# - JUnit XML 输出用于 CI
+# - 重试失败的测试
 
-# Configuration
+# 配置
 cargo nextest run --retries 2 --fail-fast
 
-# Archive test binaries (useful for CI: build once, test on multiple machines)
+# 存档测试二进制文件（对 CI 有用：构建一次，在多台机器上测试）
 cargo nextest archive --archive-file tests.tar.zst
 cargo nextest run --archive-file tests.tar.zst
 ```
@@ -102,51 +99,50 @@ fail-fast = false
 junit = { path = "test-results.xml" }
 ```
 
-**Combined dev configuration:**
+**组合开发配置：**
 
 ```toml
-# .cargo/config.toml — optimize the development inner loop
+# .cargo/config.toml — 优化开发内循环
 [build]
-rustc-wrapper = "sccache"       # Cache compilation artifacts
+rustc-wrapper = "sccache"       # 缓存编译产物
 
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]  # Faster linking
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]  # 更快链接
 
-# Dev profile: optimize deps but not your code
-# (put in Cargo.toml)
+# Dev profile：优化依赖但不优化你的代码
+# （放入 Cargo.toml）
 # [profile.dev.package."*"]
 # opt-level = 2
 ```
 
-### cargo-expand and cargo-geiger — Visibility Tools
+### cargo-expand 和 cargo-geiger — 可见性工具
 
-**`cargo-expand`** — see what macros generate:
+**`cargo-expand`** — 查看宏生成的内容：
 
 ```bash
 cargo install cargo-expand
 
-# Expand all macros in a specific module
+# 展开特定模块中的所有宏
 cargo expand --lib accel_diag::vendor
 
-# Expand a specific derive
-# Given: #[derive(Debug, Serialize, Deserialize)]
-# cargo expand shows the generated impl blocks
+# 展开特定 derive
+# 给定：#[derive(Debug, Serialize, Deserialize)]
+# cargo expand 显示生成的 impl 块
 cargo expand --lib --tests
 ```
 
-Invaluable for debugging `#[derive]` macro output, `macro_rules!` expansions,
-and understanding what `serde` generates for your types.
+对于调试 `#[derive]` 宏输出、`macro_rules!` 扩展以及理解 `serde` 为你的类型生成的内容 invaluable。
 
-**`cargo-geiger`** — count `unsafe` usage across your dependency tree:
+**`cargo-geiger`** — 统计你的依赖树中 `unsafe` 的使用情况：
 
 ```bash
 cargo install cargo-geiger
 
 cargo geiger
-# Output:
+# 输出：
 # Metric output format: x/y
-#   x = unsafe code used by the build
-#   y = total unsafe code found in the crate
+#   x = 构建使用的 unsafe 代码
+#   y = crate 中找到的 unsafe 代码总量
 #
 # Functions  Expressions  Impls  Traits  Methods
 # 0/0        0/0          0/0    0/0     0/0      ✅ my_crate
@@ -154,84 +150,80 @@ cargo geiger
 # 3/3        14/14        0/0    0/0     2/2      ❗ libc
 # 15/15      142/142      4/4    0/0     12/12    ☢️ ring
 
-# The symbols:
-# ✅ = no unsafe used
-# ❗ = some unsafe used
-# ☢️ = heavily unsafe
+# 符号：
+# ✅ = 未使用 unsafe
+# ❗ = 使用了一些 unsafe
+# ☢️ = 大量使用 unsafe
 ```
 
-For the project's zero-unsafe policy, `cargo geiger` verifies that no
-dependency introduces unsafe code into the call graph that your code actually
-exercises.
+对于项目的零 unsafe 策略，`cargo geiger` 验证没有依赖将实际使用的 unsafe 代码引入调用图中。
 
-### Workspace Lints — `[workspace.lints]`
+### 工作空间 Lint — `[workspace.lints]`
 
-Since Rust 1.74, you can configure Clippy and compiler lints centrally in
-`Cargo.toml` — no more `#![deny(...)]` at the top of every crate:
+自 Rust 1.74 起，你可以集中配置 Clippy 和编译器 lint 在
+`Cargo.toml` 中——不再需要在每个 crate 顶部加 `#![deny(...)]`：
 
 ```toml
-# Root Cargo.toml — lint configuration for all crates
+# 根 Cargo.toml — 所有 crate 的 lint 配置
 [workspace.lints.clippy]
-unwrap_used = "warn"         # Prefer ? or expect("reason")
-dbg_macro = "deny"           # No dbg!() in committed code
-todo = "warn"                # Track incomplete implementations
-large_enum_variant = "warn"  # Catch accidental size bloat
+unwrap_used = "warn"         # 优先使用 ? 或 expect("reason")
+dbg_macro = "deny"           # 提交代码中不允许 dbg!()
+todo = "warn"                # 跟踪不完整的实现
+large_enum_variant = "warn"  # 捕获意外的大小膨胀
 
 [workspace.lints.rust]
-unsafe_code = "deny"         # Enforce zero-unsafe policy
-missing_docs = "warn"        # Encourage documentation
+unsafe_code = "deny"         # 强制执行零 unsafe 策略
+missing_docs = "warn"        # 鼓励文档
 ```
 
 ```toml
-# Each crate's Cargo.toml — opt into workspace lints
+# 每个 crate 的 Cargo.toml — 加入工作空间 lint
 [lints]
 workspace = true
 ```
 
-This replaces scattered `#![deny(clippy::unwrap_used)]` attributes and ensures
-consistent policy across the entire workspace.
+这取代了分散的 `#![deny(clippy::unwrap_used)]` 属性，并确保整个工作空间的一致策略。
 
-**Auto-fixing Clippy warnings:**
+**自动修复 Clippy 警告：**
 
 ```bash
-# Let Clippy automatically fix machine-applicable suggestions
+# 让 Clippy 自动修复机器可应用的建议
 cargo clippy --fix --workspace --all-targets --allow-dirty
 
-# Fix and also apply suggestions that may change behavior (review carefully!)
+# 修复并应用可能改变行为的建议（仔细审查！）
 cargo clippy --fix --workspace --all-targets --allow-dirty -- -W clippy::pedantic
 ```
 
-> **Tip**: Run `cargo clippy --fix` before committing. It handles trivial
-> issues (unused imports, redundant clones, type simplifications) that are
-> tedious to fix by hand.
+> **提示**：在提交前运行 `cargo clippy --fix`。它处理繁琐的
+> 问题（未使用的导入、冗余的克隆、类型简化），手动修复很乏味。
 
-### MSRV Policy and rust-version
+### MSRV 策略和 rust-version
 
-Minimum Supported Rust Version (MSRV) ensures your crate compiles on older
-toolchains. This matters when deploying to systems with frozen Rust versions.
+最低支持 Rust 版本（MSRV）确保你的 crate 在较旧的工具链上编译。
+当部署到具有冻结 Rust 版本的系统时，这很重要。
 
 ```toml
 # Cargo.toml
 [package]
 name = "diag_tool"
 version = "0.1.0"
-rust-version = "1.75"    # Minimum Rust version required
+rust-version = "1.75"    # 所需的最低 Rust 版本
 ```
 
 ```bash
-# Verify MSRV compliance
+# 验证 MSRV 合规性
 cargo +1.75.0 check --workspace
 
-# Automated MSRV discovery
+# 自动 MSRV 发现
 cargo install cargo-msrv
 cargo msrv find
-# Output: Minimum Supported Rust Version is 1.75.0
+# 输出：Minimum Supported Rust Version is 1.75.0
 
-# Verify in CI
+# 在 CI 中验证
 cargo msrv verify
 ```
 
-**MSRV in CI:**
+**CI 中的 MSRV：**
 
 ```yaml
 jobs:
@@ -242,199 +234,195 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.75.0"    # Match rust-version in Cargo.toml
+          toolchain: "1.75.0"    # 与 Cargo.toml 中的 rust-version 匹配
       - run: cargo check --workspace
 ```
 
-**MSRV strategy:**
-- **Binary applications** (like a large project): Use latest stable. No MSRV needed.
-- **Library crates** (published to crates.io): Set MSRV to oldest Rust version
-  that supports all features you use. Commonly `N-2` (two versions behind current).
-- **Enterprise deployments**: Set MSRV to match the oldest Rust version installed
-  on your fleet.
+**MSRV 策略：**
+- **二进制应用程序**（如大型项目）：使用最新稳定版。不需要 MSRV。
+- **库 crate**（发布到 crates.io）：将 MSRV 设置为支持你使用的所有特性的最旧 Rust 版本。通常是 `N-2`（当前版本后两个）。
+- **企业部署**：将 MSRV 设置为与你的集群上安装的最旧 Rust 版本匹配。
 
-### Application: Production Binary Profile
+### 应用：生产二进制文件 Profile
 
-The project already has an excellent [release profile](ch07-release-profiles-and-binary-size.md):
+该项目已经有优秀的[发布 profile](ch07-release-profiles-and-binary-size.md)：
 
 ```toml
-# Current workspace Cargo.toml
+# 当前工作空间 Cargo.toml
 [profile.release]
-lto = true           # ✅ Full cross-crate optimization
-codegen-units = 1    # ✅ Maximum optimization
-panic = "abort"      # ✅ No unwinding overhead
-strip = true         # ✅ Remove symbols for deployment
+lto = true           # ✅ 完整跨 crate 优化
+codegen-units = 1    # ✅ 最大优化
+panic = "abort"      # ✅ 无展开开销
+strip = true         # ✅ 移除符号用于部署
 
 [profile.dev]
-opt-level = 0        # ✅ Fast compilation
-debug = true         # ✅ Full debug info
+opt-level = 0        # ✅ 快速编译
+debug = true         # ✅ 完整调试信息
 ```
 
-**Recommended additions:**
+**建议的添加：**
 
 ```toml
-# Optimize dependencies in dev mode (faster test execution)
+# 在 dev 模式下优化依赖（更快的测试执行）
 [profile.dev.package."*"]
 opt-level = 2
 
-# Test profile: some optimization to prevent timeout in slow tests
+# 测试 profile：一些优化以防止慢速测试超时
 [profile.test]
 opt-level = 1
 
-# Keep overflow checks in release (safety)
+# 在 release 中保持溢出检查（安全）
 [profile.release]
 lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
-overflow-checks = true    # ← add this: catch integer overflows
-debug = "line-tables-only" # ← add this: backtraces without full DWARF
+overflow-checks = true    # ← 添加这个：捕获整数溢出
+debug = "line-tables-only" # ← 添加这个：无完整 DWARF 的 backtrace
 ```
 
-**Recommended developer tooling:**
+**建议的开发者工具：**
 
 ```toml
-# .cargo/config.toml (proposed)
+# .cargo/config.toml（提议）
 [build]
-rustc-wrapper = "sccache"  # 80%+ cache hit after first build
+rustc-wrapper = "sccache"  # 首次构建后 80%+ 缓存命中率
 
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]  # 3-5× faster linking
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]  # 链接快 3-5 倍
 ```
 
-**Expected impact on the project:**
+**对项目的预期影响：**
 
-| Metric | Current | With Additions |
+| 指标 | 当前 | 添加后 |
 |--------|---------|----------------|
-| Release binary | ~10 MB (stripped, LTO) | Same |
-| Dev build time | ~45s | ~25s (sccache + mold) |
-| Rebuild (1 file change) | ~15s | ~5s (sccache + mold) |
-| Test execution | `cargo test` | `cargo nextest` — 2× faster |
-| Dep vulnerability scanning | None | `cargo audit` in CI |
-| License compliance | Manual | `cargo deny` automated |
-| Unused dependency detection | Manual | `cargo udeps` in CI |
+| Release 二进制文件 | ~10 MB（剥离、LTO） | 相同 |
+| Dev 构建时间 | ~45s | ~25s（sccache + mold） |
+| 重建（1 个文件更改） | ~15s | ~5s（sccache + mold） |
+| 测试执行 | `cargo test` | `cargo nextest` — 快 2 倍 |
+| 依赖漏洞扫描 | 无 | CI 中 `cargo audit` |
+| 许可证合规性 | 手动 | `cargo deny` 自动化 |
+| 未使用依赖检测 | 手动 | CI 中 `cargo udeps` |
 
-### `cargo-watch` — Auto-Rebuild on File Changes
+### `cargo-watch` — 文件更改时自动重建
 
-[`cargo-watch`](https://github.com/watchexec/cargo-watch) re-runs a command
-every time a source file changes — essential for tight feedback loops:
+[`cargo-watch`](https://github.com/watchexec/cargo-watch) 每次源文件更改时重新运行命令——
+对于紧密反馈循环必不可少：
 
 ```bash
-# Install
+# 安装
 cargo install cargo-watch
 
-# Re-check on every save (instant feedback)
+# 每次保存时重新检查（即时反馈）
 cargo watch -x check
 
-# Run clippy + tests on change
+# 更改时运行 clippy + 测试
 cargo watch -x 'clippy --workspace --all-targets' -x 'test --workspace --lib'
 
-# Watch only specific crates (faster for large workspaces)
+# 只监视特定 crate（对大型工作空间更快）
 cargo watch -w accel_diag/src -x 'test -p accel_diag'
 
-# Clear screen between runs
+# 在运行之间清除屏幕
 cargo watch -c -x check
 ```
 
-> **Tip**: Combine with `mold` + `sccache` from above for sub-second
-> re-check times on incremental changes.
+> **提示**：与上面的 `mold` + `sccache` 结合使用，增量更改的重新检查时间可低于一秒。
 
-### `cargo doc` and Workspace Documentation
+### `cargo doc` 和工作空间文档
 
-For a large workspace, generated documentation is essential for
-discoverability. `cargo doc` uses rustdoc to produce HTML docs from
-doc-comments and type signatures:
+对于大型工作空间，生成的文档对可发现性必不可少。
+`cargo doc` 使用 rustdoc 从文档注释和类型签名生成 HTML 文档：
 
 ```bash
-# Generate docs for all workspace crates (opens in browser)
+# 为所有工作空间 crate 生成文档（在浏览器中打开）
 cargo doc --workspace --no-deps --open
 
-# Include private items (useful during development)
+# 包含私有项（开发期间有用）
 cargo doc --workspace --no-deps --document-private-items
 
-# Check doc-links without generating HTML (fast CI check)
+# 检查 doc-links 而不生成 HTML（快速 CI 检查）
 cargo doc --workspace --no-deps 2>&1 | grep -E 'warning|error'
 ```
 
-**Intra-doc links** — link between types across crates without URLs:
+**文档内链接** — 跨 crate 链接类型，无需 URL：
 
 ```rust
-/// Runs GPU diagnostics using [`GpuConfig`] settings.
+/// 使用 [`GpuConfig`] 设置运行 GPU 诊断。
 ///
-/// See [`crate::accel_diag::run_diagnostics`] for the implementation.
-/// Returns [`DiagResult`] which can be serialized to the
-/// [`DerReport`](crate::core_lib::DerReport) format.
+/// 参见 [`crate::accel_diag::run_diagnostics`] 获取实现。
+/// 返回 [`DiagResult`]，可以序列化为
+/// [`DerReport`](crate::core_lib::DerReport) 格式。
 pub fn run_accel_diag(config: &GpuConfig) -> DiagResult {
     // ...
 }
 ```
 
-**Show platform-specific APIs in docs:**
+**在文档中显示平台特定 API：**
 
 ```rust
 // Cargo.toml: [package.metadata.docs.rs]
 // all-features = true
 // rustdoc-args = ["--cfg", "docsrs"]
 
-/// Windows-only: read battery status via Win32 API.
+/// 仅限 Windows：通过 Win32 API 读取电池状态。
 ///
-/// Only available on `cfg(windows)` builds.
+/// 仅在 `cfg(windows)` 构建上可用。
 #[cfg(windows)]
-#[doc(cfg(windows))]  // Shows "Available on Windows only" badge in docs
+#[doc(cfg(windows))]  // 在文档中显示"仅在 Windows 上可用"徽章
 pub fn get_battery_status() -> Option<u8> {
     // ...
 }
 ```
 
-**CI documentation check:**
+**CI 文档检查：**
 
 ```yaml
-# Add to CI workflow
+# 添加到 CI 工作流
 - name: Check documentation
   run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-  # Treats broken intra-doc links as errors
+  # 将损坏的文档内链接视为错误
 ```
 
-> **For the project**: With many crates, `cargo doc --workspace` is the best
-> way for new team members to discover the API surface. Add
-> `RUSTDOCFLAGS="-D warnings"` to CI to catch broken doc-links before merge.
+> **对于项目**：对于多个 crate，`cargo doc --workspace` 是新团队成员发现 API surface 的最佳方式。
+> 在合并前将 `RUSTDOCFLAGS="-D warnings"` 添加到 CI 以捕获损坏的文档内链接。
 
-### Compile-Time Decision Tree
+### 编译时决策树
 
 ```mermaid
 flowchart TD
     START["Compile too slow?"] --> WHERE{"Where's the time?"}
-    
+
     WHERE -->|"Recompiling\nunchanged crates"| SCCACHE["sccache\nShared compilation cache"]
     WHERE -->|"Linking phase"| MOLD["mold linker\n3-10× faster linking"]
     WHERE -->|"Running tests"| NEXTEST["cargo-nextest\nParallel test runner"]
     WHERE -->|"Everything"| COMBO["All of the above +\ncargo-udeps to trim deps"]
-    
+
     SCCACHE --> CI_CACHE{"CI or local?"}
     CI_CACHE -->|"CI"| S3["S3/GCS shared cache"]
     CI_CACHE -->|"Local"| LOCAL["Local disk cache\nauto-configured"]
-    
+
     style SCCACHE fill:#91e5a3,color:#000
     style MOLD fill:#e3f2fd,color:#000
     style NEXTEST fill:#ffd43b,color:#000
     style COMBO fill:#b39ddb,color:#000
 ```
 
-### 🏋️ Exercises
+### 🏋️ 练习
 
-#### 🟢 Exercise 1: Set Up sccache + mold
+#### 🟢 练习 1：设置 sccache + mold
 
-Install `sccache` and `mold`, configure them in `.cargo/config.toml`, then measure the compile time improvement on a clean rebuild.
+安装 `sccache` 和 `mold`，在 `.cargo/config.toml` 中配置它们，
+然后测量清理重建的编译时间改进。
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```bash
-# Install
+# 安装
 cargo install sccache
 sudo apt install mold  # Ubuntu 22.04+
 
-# Configure .cargo/config.toml:
+# 配置 .cargo/config.toml：
 cat > .cargo/config.toml << 'EOF'
 [build]
 rustc-wrapper = "sccache"
@@ -444,50 +432,51 @@ linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 EOF
 
-# First build (populates cache)
-time cargo build --release  # e.g., 180s
+# 第一次构建（填充缓存）
+time cargo build --release  # 例如 180s
 
-# Clean + rebuild (cache hits)
+# 清理 + 重建（缓存命中）
 cargo clean
-time cargo build --release  # e.g., 45s
+time cargo build --release  # 例如 45s
 
 sccache --show-stats
-# Cache hits should be 60-80%+
+# 缓存命中率应该是 60-80%+
 ```
 </details>
 
-#### 🟡 Exercise 2: Switch to cargo-nextest
+#### 🟡 练习 2：切换到 cargo-nextest
 
-Install `cargo-nextest` and run your test suite. Compare wall-clock time with `cargo test`. What's the speedup?
+安装 `cargo-nextest` 并运行你的测试套件。
+与 `cargo test` 比较墙上时间。加速是多少？
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```bash
 cargo install cargo-nextest
 
-# Standard test runner
+# 标准测试运行器
 time cargo test --workspace 2>&1 | tail -5
 
-# nextest (parallel per-test-binary execution)
+# nextest（每个测试二进制文件并行执行）
 time cargo nextest run --workspace 2>&1 | tail -5
 
-# Typical speedup: 2-5× for large workspaces
-# nextest also provides:
-# - Per-test timing
-# - Retries for flaky tests
-# - JUnit XML output for CI
+# 大型工作空间的典型加速：2-5 倍
+# nextest 还提供：
+# - 每个测试的计时
+# - 闪烁测试的重试
+# - 用于 CI 的 JUnit XML 输出
 cargo nextest run --workspace --retries 2
 ```
 </details>
 
-### Key Takeaways
+### 关键要点
 
-- `sccache` with S3/GCS backend shares compilation cache across team and CI
-- `mold` is the fastest ELF linker — link times drop from seconds to milliseconds
-- `cargo-nextest` runs tests in parallel per-binary with better output and retry support
-- `cargo-geiger` counts `unsafe` usage — run it before accepting new dependencies
-- `[workspace.lints]` centralizes Clippy and rustc lint configuration across a multi-crate workspace
+- 带有 S3/GCS 后端的 `sccache` 在团队和 CI 之间共享编译缓存
+- `mold` 是最快的 ELF 链接器 — 链接时间从秒降到毫秒
+- `cargo-nextest` 以更好的输出和重试支持并行运行每个二进制文件的测试
+- `cargo-geiger` 统计 `unsafe` 使用情况 — 在接受新依赖之前运行它
+- `[workspace.lints]` 在多 crate 工作空间中集中 Clippy 和 rustc lint 配置
 
 ---
 

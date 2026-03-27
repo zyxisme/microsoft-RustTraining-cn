@@ -1,22 +1,22 @@
-# 3. The Newtype and Type-State Patterns 🟡
+# 3. Newtype 与类型状态模式 🟡
 
-> **What you'll learn:**
-> - The newtype pattern for zero-cost compile-time type safety
-> - Type-state pattern: making illegal state transitions unrepresentable
-> - Builder pattern with type states for compile-time–enforced construction
-> - Config trait pattern for taming generic parameter explosion
+> **你将学到：**
+> - Newtype 模式实现零成本编译时类型安全
+> - 类型状态模式：使非法状态转换不可表示
+> - 带类型状态的构建器模式实现编译时强制构造
+> - Config trait 模式驯服泛型参数爆炸
 
-## Newtype: Zero-Cost Type Safety
+## Newtype：零成本类型安全
 
-The newtype pattern wraps an existing type in a single-field tuple struct to create a distinct type with zero runtime overhead:
+Newtype 模式将现有类型包装在单字段元组结构体中，创建一个具有零运行时开销的不同类型：
 
 ```rust
-// Without newtypes — easy to mix up:
+// 没有 newtype —— 容易混淆：
 fn create_user(name: String, email: String, age: u32, employee_id: u32) { }
-// create_user(name, email, age, id);  — but what if we swap age and id?
-// create_user(name, email, id, age);  — COMPILES FINE, BUG
+// create_user(name, email, age, id);  — 但如果我们交换了 age 和 id 怎么办？
+// create_user(name, email, id, age);  — 编译通过，BUG
 
-// With newtypes — the compiler catches mistakes:
+// 有 newtype —— 编译器捕获错误：
 struct UserName(String);
 struct Email(String);
 struct Age(u32);
@@ -24,13 +24,13 @@ struct EmployeeId(u32);
 
 fn create_user(name: UserName, email: Email, age: Age, id: EmployeeId) { }
 // create_user(name, email, EmployeeId(42), Age(30));
-// ❌ Compile error: expected Age, got EmployeeId
+// ❌ 编译错误：期望 Age，得到 EmployeeId
 ```
 
-### `impl Deref` for Newtypes — Power and Pitfalls
+### 为 Newtype 实现 `Deref` —— 力量与陷阱
 
-Implementing `Deref` on a newtype lets it auto-coerce to the inner type's
-reference, giving you all of the inner type's methods "for free":
+在 newtype 上实现 `Deref` 让它自动强制转换为内部类型的引用，
+免费获得内部类型的所有方法：
 
 ```rust
 use std::ops::Deref;
@@ -52,40 +52,35 @@ impl Deref for Email {
     fn deref(&self) -> &str { &self.0 }
 }
 
-// Now Email auto-derefs to &str:
+// 现在 Email 自动解引用为 &str：
 let email = Email::new("user@example.com").unwrap();
-println!("Length: {}", email.len()); // Uses str::len via Deref
+println!("Length: {}", email.len()); // 通过 Deref 使用 str::len
 ```
 
-This is convenient — but it effectively **punches a hole** through your
-newtype's abstraction boundary because *every* method on the target type
-becomes callable on your wrapper.
+这很方便 —— 但它有效地**在你的 newtype 抽象边界上打了一个洞**，
+因为*目标类型上的每个*方法都可以在你的包装器上调用。
 
-#### When `Deref` IS appropriate
+#### 何时 `Deref` 是合适的
 
-| Scenario | Example | Why it's fine |
+| 场景 | 示例 | 为什么可以 |
 |----------|---------|---------------|
-| Smart-pointer wrappers | `Box<T>`, `Arc<T>`, `MutexGuard<T>` | The wrapper's whole purpose is to behave like `T` |
-| Transparent "thin" wrappers | `String` → `str`, `PathBuf` → `Path`, `Vec<T>` → `[T]` | The wrapper IS-A superset of the target |
-| Your newtype genuinely IS the inner type | `struct Hostname(String)` where you always want full string ops | Restricting the API would add no value |
+| 智能指针包装器 | `Box<T>`、`Arc<T>`、`MutexGuard<T>` | 包装器的整个目的就是表现得像 `T` |
+| 透明的"薄"包装器 | `String` → `str`、`PathBuf` → `Path`、`Vec<T>` → `[T]` | 包装器是目标类型的超集 |
+| 你的 newtype 确实是内部类型 | `struct Hostname(String)` 你始终想要完整的字符串操作 | 限制 API 不会增加价值 |
 
-#### When `Deref` is an anti-pattern
+#### 何时 `Deref` 是反模式
 
-| Scenario | Problem |
-|----------|---------|
-| **Domain types with invariants** | `Email` derefs to `&str`, so callers can call `.split_at()`, `.trim()`, etc. — none of which preserve the "must contain @" invariant. If someone stores the trimmed `&str` and reconstructs, the invariant is lost. |
-| **Types where you want a restricted API** | `struct Password(String)` with `Deref<Target = str>` leaks `.as_bytes()`, `.chars()`, `Debug` output — exactly what you're trying to hide. |
-| **Fake inheritance** | Using `Deref` to make `ManagerWidget` auto-deref to `Widget` simulates OOP inheritance. This is explicitly discouraged — see the Rust API Guidelines (C-DEREF). |
+| 场景 | 问题 |
+|----------|--------|
+| **具有不变量的领域类型** | `Email` 解引用为 `&str`，所以调用者可以调用 `.split_at()`、`.trim()` 等 —— 都不保持"必须包含 @" 的不变量。如果有人存储修剪后的 `&str` 并重建，不变量就丢失了。 |
+| **你想要受限 API 的类型** | `struct Password(String)` 带 `Deref<Target = str>` 泄露 `.as_bytes()`、`.chars()`、`Debug` 输出 —— 正是你试图隐藏的。 |
+| **假继承** | 使用 `Deref` 让 `ManagerWidget` 自动解引用到 `Widget` 模拟 OOP 继承。这被明确不鼓励 —— 参见 Rust API 指南（C-DEREF）。 |
 
-> **Rule of thumb**: If your newtype exists to *add type safety* or *restrict
-> the API*, don't implement `Deref`. If it exists to *add capabilities* while
-> keeping the inner type's full surface (like a smart pointer), `Deref` is
-> the right choice.
+> **经验法则**：如果你的 newtype 存在是为了*增加类型安全*或*限制 API*，不要实现 `Deref`。如果它存在是为了*增加能力*同时保持内部类型的完整表面（像智能指针），`Deref` 是正确选择。
 
-#### `DerefMut` — doubles the risk
+#### `DerefMut` —— 加倍风险
 
-If you also implement `DerefMut`, callers can *mutate* the inner value
-directly, bypassing any validation in your constructors:
+如果你还实现了 `DerefMut`，调用者可以直接*改变*内部值，绕过构造函数中的任何验证：
 
 ```rust
 use std::ops::{Deref, DerefMut};
@@ -102,14 +97,14 @@ impl DerefMut for PortNumber {
 }
 
 let mut port = PortNumber(443);
-*port = 0; // Bypasses any validation — now an invalid port
+*port = 0; // 绕过任何验证 —— 现在是无效端口
 ```
 
-Only implement `DerefMut` when the inner type has no invariants to protect.
+只有当内部类型没有要保护的不变量时才实现 `DerefMut`。
 
-#### Prefer explicit delegation instead
+#### 优先使用显式委托
 
-When you want only *some* of the inner type's methods, delegate explicitly:
+当你只想要内部类型的*一些*方法时，显式委托：
 
 ```rust
 struct Email(String);
@@ -120,41 +115,35 @@ impl Email {
         else { Err("missing @") }
     }
 
-    // Expose only what makes sense:
+    // 只暴露有意义的：
     pub fn as_str(&self) -> &str { &self.0 }
     pub fn len(&self) -> usize { self.0.len() }
     pub fn domain(&self) -> &str {
         self.0.split('@').nth(1).unwrap_or("")
     }
-    // .split_at(), .trim(), .replace() — NOT exposed
+    // .split_at()、.trim()、.replace() —— 不暴露
 }
 ```
 
-#### Clippy and the ecosystem
+#### Clippy 和生态系统
 
-- **`clippy::wrong_self_convention`** can fire when `Deref` coercion
-  makes method resolution surprising (e.g., `is_empty()` resolving to the
-  inner type's version instead of one you intended to shadow).
-- The **Rust API Guidelines** (C-DEREF) state: *"only smart pointers
-  should implement `Deref`."* Treat this as a strong default; deviate
-  only with clear justification.
-- If you need trait compatibility (e.g., passing `Email` to functions
-  expecting `&str`), consider implementing `AsRef<str>` and `Borrow<str>`
-  instead — they're explicit conversions without auto-coercion surprises.
+- **`clippy::wrong_self_convention`** 可能在 `Deref` 强制转换使方法解析令人惊讶时触发（例如 `is_empty()` 解析为内部类型的版本而非你打算 shadow 的版本）。
+- **Rust API 指南**（C-DEREF）声明：*"只有智能指针应该实现 `Deref`。"* 将此作为强默认；只有有明确理由才偏离。
+- 如果你需要 trait 兼容性（例如将 `Email` 传递给期望 `&str` 的函数），考虑实现 `AsRef<str>` 和 `Borrow<str>` 而不是 —— 它们是显式转换，没有自动强制转换的惊喜。
 
-#### Decision matrix
+#### 决策矩阵
 
 ```text
-Do you want ALL methods of the inner type to be callable?
-  ├─ YES → Does your type enforce invariants or restrict the API?
-  │    ├─ NO  → impl Deref ✅  (smart-pointer / transparent wrapper)
-  │    └─ YES → Don't impl Deref ❌ (invariant leaks)
-  └─ NO  → Don't impl Deref ❌  (use AsRef / explicit delegation)
+你想让内部类型的所有方法都可调用吗？
+  ├─ YES → 你的类型是否强制不变量或限制 API？
+  │    ├─ NO  → impl Deref ✅  （智能指针/透明包装器）
+  │    └─ YES → 不要 impl Deref ❌ （不变量泄露）
+  └─ NO  → 不要 impl Deref ❌  （使用 AsRef / 显式委托）
 ```
 
-### Type-State: Compile-Time Protocol Enforcement
+### 类型状态：编译时协议强制
 
-The type-state pattern uses the type system to enforce that operations happen in the correct order. Invalid states become **unrepresentable**.
+类型状态模式使用类型系统强制操作按正确顺序发生。无效状态变得**不可表示**。
 
 ```mermaid
 stateDiagram-v2
@@ -164,32 +153,32 @@ stateDiagram-v2
     Authenticated --> Authenticated: request()
     Authenticated --> [*]: drop
 
-    Disconnected --> Disconnected: ❌ request() won't compile
-    Connected --> Connected: ❌ request() won't compile
+    Disconnected --> Disconnected: ❌ request() 不会编译
+    Connected --> Connected: ❌ request() 不会编译
 ```
 
-> Each transition *consumes* `self` and returns a new type — the compiler enforces valid ordering.
+> 每个转换*消耗* `self` 并返回一个新类型 —— 编译器强制有效排序。
 
 ```rust
-// Problem: A network connection that must be:
-// 1. Created
-// 2. Connected
-// 3. Authenticated
-// 4. Then used for requests
-// Calling request() before authenticate() should be a COMPILE error.
+// 问题：网络连接必须：
+// 1. 创建
+// 2. 连接
+// 3. 认证
+// 4. 然后用于请求
+// 在 authenticate() 之前调用 request() 应该是编译错误。
 
-// --- Type-state markers (zero-sized types) ---
+// --- 类型状态标记（零大小类型） ---
 struct Disconnected;
 struct Connected;
 struct Authenticated;
 
-// --- Connection parameterized by state ---
+// --- 按状态参数化的连接 ---
 struct Connection<State> {
     address: String,
     _state: std::marker::PhantomData<State>,
 }
 
-// Only Disconnected connections can connect:
+// 只有 Disconnected 连接可以连接：
 impl Connection<Disconnected> {
     fn new(address: &str) -> Self {
         Connection {
@@ -207,7 +196,7 @@ impl Connection<Disconnected> {
     }
 }
 
-// Only Connected connections can authenticate:
+// 只有 Connected 连接可以认证：
 impl Connection<Connected> {
     fn authenticate(self, _token: &str) -> Connection<Authenticated> {
         println!("Authenticating...");
@@ -218,7 +207,7 @@ impl Connection<Connected> {
     }
 }
 
-// Only Authenticated connections can make requests:
+// 只有 Authenticated 连接可以发出请求：
 impl Connection<Authenticated> {
     fn request(&self, path: &str) -> String {
         format!("GET {} from {}", path, self.address)
@@ -227,31 +216,31 @@ impl Connection<Authenticated> {
 
 fn main() {
     let conn = Connection::new("api.example.com");
-    // conn.request("/data"); // ❌ Compile error: no method `request` on Connection<Disconnected>
+    // conn.request("/data"); // ❌ 编译错误：Connection<Disconnected> 上没有方法 `request`
 
     let conn = conn.connect();
-    // conn.request("/data"); // ❌ Compile error: no method `request` on Connection<Connected>
+    // conn.request("/data"); // ❌ 编译错误：Connection<Connected> 上没有方法 `request`
 
     let conn = conn.authenticate("secret-token");
-    let response = conn.request("/data"); // ✅ Only works after authentication
+    let response = conn.request("/data"); // ✅ 只有在认证后才有效
     println!("{response}");
 }
 ```
 
-> **Key insight**: Each state transition *consumes* `self` and returns a new type.
-> You can't use the old state after transitioning — the compiler enforces it.
-> Zero runtime cost — `PhantomData` is zero-sized, states are erased at compile time.
+> **关键洞察**：每个状态转换*消耗* `self` 并返回一个新类型。
+> 转换后你不能使用旧状态 —— 编译器强制执行。
+> 零运行时成本 —— `PhantomData` 是零大小的，状态在编译时擦除。
 
-**Comparison with C++/C#**: In C++ or C#, you'd enforce this with runtime checks (`if (!authenticated) throw ...`). The Rust type-state pattern moves these checks to compile time — invalid states are literally unrepresentable in the type system.
+**与 C++/C# 对比**：在 C++ 或 C# 中，你用运行时检查强制这个（`if (!authenticated) throw ...`）。Rust 类型状态模式将这些检查移到编译时 —— 无效状态在类型系统中 literally 不可表示。
 
-### Builder Pattern with Type States
+### 带类型状态的构建器模式
 
-A practical application — a builder that enforces required fields:
+一个实际应用 —— 强制必需字段的构建器：
 
 ```rust
 use std::marker::PhantomData;
 
-// Marker types for required fields
+// 必需字段的标记类型
 struct NeedsName;
 struct NeedsPort;
 struct Ready;
@@ -259,7 +248,7 @@ struct Ready;
 struct ServerConfig<State> {
     name: Option<String>,
     port: Option<u16>,
-    max_connections: usize, // Optional, has default
+    max_connections: usize, // 可选，有默认值
     _state: PhantomData<State>,
 }
 
@@ -316,23 +305,23 @@ struct Server {
 }
 
 fn main() {
-    // Must provide name, then port, then can build:
+    // 必须提供 name，然后 port，然后可以 build：
     let server = ServerConfig::new()
         .name("my-server")
         .port(8080)
         .max_connections(500)
         .build();
 
-    // ServerConfig::new().port(8080); // ❌ Compile error: no method `port` on NeedsName
-    // ServerConfig::new().name("x").build(); // ❌ Compile error: no method `build` on NeedsPort
+    // ServerConfig::new().port(8080); // ❌ 编译错误：NeedsName 上没有方法 `port`
+    // ServerConfig::new().name("x").build(); // ❌ 编译错误：NeedsPort 上没有方法 `build`
 }
 ```
 
 ***
 
-## Case Study: Type-Safe Connection Pool
+## 案例研究：类型安全连接池
 
-Real-world systems need connection pools where connections move through well-defined states. Here's how the typestate pattern enforces correctness in a production pool:
+真实系统需要连接池，其中连接通过明确定义的状态移动。以下是类型状态模式如何在生产池中强制正确性的方法：
 
 ```mermaid
 stateDiagram-v2
@@ -342,13 +331,13 @@ stateDiagram-v2
     Active --> Idle: conn.commit() / conn.rollback()
     Idle --> [*]: pool.release(conn)
 
-    Active --> [*]: ❌ cannot release mid-transaction
+    Active --> [*]: ❌ 不能在事务中释放
 ```
 
 ```rust
 use std::marker::PhantomData;
 
-// States
+// 状态
 struct Idle;
 struct InTransaction;
 
@@ -370,7 +359,7 @@ impl Pool {
         PooledConnection { id: self.next_id, _state: PhantomData }
     }
 
-    // Only idle connections can be released — prevents mid-transaction leaks
+    // 只有空闲连接可以被释放 —— 防止事务中泄漏
     fn release(&self, conn: PooledConnection<Idle>) {
         println!("[pool] Released connection #{}", conn.id);
     }
@@ -406,25 +395,22 @@ fn main() {
     let conn = conn.begin_transaction();
     conn.execute("INSERT INTO users VALUES ('Alice')");
     conn.execute("INSERT INTO orders VALUES (1, 42)");
-    let conn = conn.commit(); // Back to Idle
-    pool.release(conn);       // ✅ Only works on Idle connections
+    let conn = conn.commit(); // 回到 Idle
+    pool.release(conn);       // ✅ 只对 Idle 连接有效
 
-    // pool.release(conn_active); // ❌ Compile error: can't release InTransaction
+    // pool.release(conn_active); // ❌ 编译错误：不能释放 InTransaction
 }
 ```
 
-**Why this matters in production**: A connection leaked mid-transaction holds database
-locks indefinitely. The typestate pattern makes this impossible — you literally cannot
-return a connection to the pool until the transaction is committed or rolled back.
+**为什么这在生产中重要**：在事务中泄漏的连接无限期地持有数据库锁。类型状态模式使这成为不可能 —— 你 literal 无法在事务提交或回滚之前将连接返回到池中。
 
 ***
 
-## Config Trait Pattern — Taming Generic Parameter Explosion
+## Config Trait 模式 —— 驯服泛型参数爆炸
 
-### The Problem
+### 问题
 
-As a struct takes on more responsibilities, each backed by a trait-constrained generic,
-the type signature grows unwieldy:
+随着结构体承担更多职责，每个由 trait 约束泛型支持，类型签名变得笨拙：
 
 ```rust
 trait SpiBus   { fn spi_transfer(&self, tx: &[u8], rx: &mut [u8]) -> Result<(), BusError>; }
@@ -433,7 +419,7 @@ trait I3cBus   { fn i3c_read(&self, addr: u8, buf: &mut [u8]) -> Result<(), BusE
 trait SmBus    { fn smbus_read_byte(&self, addr: u8, cmd: u8) -> Result<u8, BusError>; }
 trait GpioBus  { fn gpio_set(&self, pin: u32, high: bool); }
 
-// ❌ Every new bus trait adds another generic parameter
+// ❌ 每个新的总线 trait 添加另一个泛型参数
 struct DiagController<S: SpiBus, C: ComPort, I: I3cBus, M: SmBus, G: GpioBus> {
     spi: S,
     com: C,
@@ -441,18 +427,15 @@ struct DiagController<S: SpiBus, C: ComPort, I: I3cBus, M: SmBus, G: GpioBus> {
     smbus: M,
     gpio: G,
 }
-// impl blocks, function signatures, and callers all repeat the full list.
-// Adding a 6th bus means editing every mention of DiagController<S, C, I, M, G>.
+// impl 块、函数签名和调用者都重复完整列表。
+// 添加第 6 个总线意味着编辑 DiagController<S, C, I, M, G> 的每次提及。
 ```
 
-This is often called **"generic parameter explosion."** It compounds across `impl` blocks,
-function parameters, and downstream consumers — each of which must repeat the full
-parameter list.
+这通常被称为**"泛型参数爆炸"**。它跨 `impl` 块、函数参数和下游消费者复合 —— 每个都必须重复完整参数列表。
 
-### The Solution: A Config Trait
+### 解决方案：Config Trait
 
-Bundle all associated types into a single trait. The struct then has **one** generic
-parameter regardless of how many component types it contains:
+将所有关联类型捆绑到单个 trait 中。然后结构体只有**一个**泛型参数，无论它包含多少组件类型：
 
 ```rust
 #[derive(Debug)]
@@ -462,7 +445,7 @@ enum BusError {
     HardwareFault(String),
 }
 
-// --- Bus traits (unchanged) ---
+// --- 总线 trait（不变） ---
 trait SpiBus {
     fn spi_transfer(&self, tx: &[u8], rx: &mut [u8]) -> Result<(), BusError>;
     fn spi_write(&self, data: &[u8]) -> Result<(), BusError>;
@@ -478,14 +461,14 @@ trait I3cBus {
     fn i3c_write(&self, addr: u8, data: &[u8]) -> Result<(), BusError>;
 }
 
-// --- The Config trait: one associated type per component ---
+// --- Config trait：每个组件一个关联类型 ---
 trait BoardConfig {
     type Spi: SpiBus;
     type Com: ComPort;
     type I3c: I3cBus;
 }
 
-// --- DiagController has exactly ONE generic parameter ---
+// --- DiagController 恰好有一个泛型参数 ---
 struct DiagController<Cfg: BoardConfig> {
     spi: Cfg::Spi,
     com: Cfg::Com,
@@ -493,11 +476,10 @@ struct DiagController<Cfg: BoardConfig> {
 }
 ```
 
-`DiagController<Cfg>` will never gain another generic parameter.
-Adding a 4th bus means adding one associated type to `BoardConfig` and one field
-to `DiagController` — no downstream signature changes.
+`DiagController<Cfg>` 永远不会获得另一个泛型参数。
+添加第 4 个总线意味着向 `BoardConfig` 添加一个关联类型，向 `DiagController` 添加一个字段 —— 无需下游签名更改。
 
-### Implementing the Controller
+### 实现控制器
 
 ```rust
 impl<Cfg: BoardConfig> DiagController<Cfg> {
@@ -550,9 +532,9 @@ struct DiagReport {
 }
 ```
 
-### Production Wiring
+### 生产接线
 
-One `impl BoardConfig` selects the concrete hardware drivers:
+一个 `impl BoardConfig` 选择具体硬件驱动程序：
 
 ```rust
 struct PlatformSpi  { dev: String, speed_hz: u32 }
@@ -561,7 +543,7 @@ struct LinuxI3c     { dev: String }
 
 impl SpiBus for PlatformSpi {
     fn spi_transfer(&self, tx: &[u8], rx: &mut [u8]) -> Result<(), BusError> {
-        // ioctl(SPI_IOC_MESSAGE) in production
+        // 生产中调用 ioctl(SPI_IOC_MESSAGE)
         rx[0..4].copy_from_slice(&[0xEF, 0x40, 0x18, 0x00]);
         Ok(())
     }
@@ -585,7 +567,7 @@ impl I3cBus for LinuxI3c {
     fn i3c_write(&self, _addr: u8, _data: &[u8]) -> Result<(), BusError> { Ok(()) }
 }
 
-// ✅ One struct, one impl — all concrete types resolved here
+// ✅ 一个结构体，一个 impl —— 所有具体类型在此解析
 struct ProductionBoard;
 impl BoardConfig for ProductionBoard {
     type Spi = PlatformSpi;
@@ -604,9 +586,9 @@ fn main() {
 }
 ```
 
-### Test Wiring with Mocks
+### 用 Mock 进行测试接线
 
-Swap the entire hardware layer by defining a different `BoardConfig`:
+通过定义不同的 `BoardConfig` 交换整个硬件层：
 
 ```rust
 struct MockSpi  { flash_id: [u8; 4] }
@@ -687,93 +669,84 @@ mod tests {
 }
 ```
 
-### Adding a New Bus Later
+### 稍后添加新总线
 
-When you need a 4th bus, only two things change — `BoardConfig` and `DiagController`.
-**No downstream signature changes.** The generic parameter count stays at one:
+当你需要第 4 个总线时，只有两件事改变 —— `BoardConfig` 和 `DiagController`。**无下游签名更改。** 泛型参数数量保持为一：
 
 ```rust
 trait SmBus {
     fn smbus_read_byte(&self, addr: u8, cmd: u8) -> Result<u8, BusError>;
 }
 
-// 1. Add one associated type:
+// 1. 添加一个关联类型：
 trait BoardConfig {
     type Spi: SpiBus;
     type Com: ComPort;
     type I3c: I3cBus;
-    type Smb: SmBus;     // ← new
+    type Smb: SmBus;     // ← 新增
 }
 
-// 2. Add one field:
+// 2. 添加一个字段：
 struct DiagController<Cfg: BoardConfig> {
     spi: Cfg::Spi,
     com: Cfg::Com,
     i3c: Cfg::I3c,
-    smb: Cfg::Smb,       // ← new
+    smb: Cfg::Smb,       // ← 新增
 }
 
-// 3. Provide the concrete type in each config impl:
+// 3. 在每个 config impl 中提供具体类型：
 impl BoardConfig for ProductionBoard {
     type Spi = PlatformSpi;
     type Com = UartCom;
     type I3c = LinuxI3c;
-    type Smb = LinuxSmbus; // ← new
+    type Smb = LinuxSmbus; // ← 新增
 }
 ```
 
-### When to Use This Pattern
+### 何时使用此模式
 
-| Situation | Use Config Trait? | Alternative |
+| 情况 | 使用 Config Trait？ | 替代方案 |
 |-----------|:-:|---|
-| 3+ trait-constrained generics on a struct | ✅ Yes | — |
-| Need to swap entire hardware/platform layer | ✅ Yes | — |
-| Only 1-2 generics | ❌ Overkill | Direct generics |
-| Need runtime polymorphism | ❌ | `dyn Trait` objects |
-| Open-ended plugin system | ❌ | Type-map / `Any` |
-| Component traits form a natural group (board, platform) | ✅ Yes | — |
+| 结构体上有 3+ 个 trait 约束泛型 | ✅ 是 | — |
+| 需要交换整个硬件/平台层 | ✅ 是 | — |
+| 只有 1-2 个泛型 | ❌ 过度 | 直接泛型 |
+| 需要运行时多态 | ❌ | `dyn Trait` 对象 |
+| 开放的插件系统 | ❌ | Type-map / `Any` |
+| 组件 trait 形成自然组（board、platform） | ✅ 是 | — |
 
-### Key Properties
+### 关键属性
 
-- **One generic parameter forever** — `DiagController<Cfg>` never gains more `<A, B, C, ...>`
-- **Fully static dispatch** — no vtables, no `dyn`, no heap allocation for trait objects
-- **Clean test swapping** — define `TestBoard` with mock impls, zero conditional compilation
-- **Compile-time safety** — forget an associated type → compile error, not runtime crash
-- **Battle-tested** — this is the pattern used by Substrate/Polkadot's frame system
-  to manage 20+ associated types through a single `Config` trait
+- **永远一个泛型参数** —— `DiagController<Cfg>` 永远不会获得更多 `<A, B, C, ...>`
+- **完全静态分发** —— 无虚表、无 `dyn`、无 trait 对象的堆分配
+- **干净的测试交换** —— 定义带 mock impl 的 `TestBoard`，零条件编译
+- **编译时安全** —— 忘记一个关联类型 → 编译错误，而非运行时崩溃
+- **久经考验** —— 这是 Substrate/Polkadot 的 frame 系统用来通过单个 `Config` trait 管理 20+ 关联类型的模式
 
-> **Key Takeaways — Newtype & Type-State**
-> - Newtypes give compile-time type safety at zero runtime cost
-> - Type-state makes illegal state transitions a compile error, not a runtime bug
-> - Config traits tame generic parameter explosion in large systems
+> **关键要点 —— Newtype 与类型状态**
+> - Newtype 提供编译时类型安全，零运行时成本
+> - 类型状态使非法状态转换成为编译错误，而非运行时 bug
+> - Config trait 驯服大型系统中的泛型参数爆炸
 
-> **See also:** [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for the zero-sized markers that power type-state. [Ch 2 — Traits In Depth](ch02-traits-in-depth.md) for associated types used in the config trait pattern.
+> **另请参阅：**[第 4 章 —— PhantomData](ch04-phantomdata-types-that-carry-no-data.md) 了解为零成本类型状态提供动力的零大小标记。[第 2 章 —— 深入 Trait](ch02-traits-in-depth.md) 了解配置 trait 模式中使用的关联类型。
 
 ---
 
-## Case Study: Dual-Axis Typestate — Vendor × Protocol State
+## 案例研究：双轴类型状态 —— 供应商 × 协议状态
 
-The patterns above handle one axis at a time: typestate enforces *protocol order*,
-and trait abstraction handles *multiple vendors*. Real systems often need **both
-simultaneously**: a wrapper `Handle<Vendor, State>` where available methods depend
-on *which vendor* is plugged in **and** *which state* the handle is in.
+上述模式一次处理一个轴：类型状态强制*协议顺序*，trait 抽象处理*多个供应商*。真实系统通常需要**同时两者**：一个包装器 `Handle<Vendor, State>`，可用方法取决于*哪个供应商*插入*以及*句柄处于*哪个状态*。
 
-This section shows the **dual-axis conditional `impl`** pattern — where `impl`
-blocks are gated on both a vendor trait bound and a state marker trait.
+本节展示**双轴条件 `impl`** 模式 —— 其中 `impl` 块同时受供应商 trait 约束和状态标记 trait 门控。
 
-### The Two-Dimensional Problem
+### 二维问题
 
-Consider a debug probe interface (JTAG/SWD). Multiple vendors make probes, and
-every probe must be unlocked before registers become accessible. Some vendors
-additionally support direct memory reads — but only after an *extended unlock*
-that configures the memory access port:
+考虑一个调试探针接口（JTAG/SWD）。多个供应商制造探针，每个探针在寄存器可访问前必须解锁。有些供应商还支持直接内存读取 —— 但只在*扩展解锁*配置内存访问端口之后：
 
 ```mermaid
 graph LR
-    subgraph "All vendors"
+    subgraph "所有供应商"
         L["🔒 Locked"] -- "unlock()" --> U["🔓 Unlocked"]
     end
-    subgraph "Memory-capable vendors only"
+    subgraph "仅内存能力供应商"
         U -- "extended_unlock()" --> E["🔓🧠 ExtendedUnlocked"]
     end
 
@@ -786,14 +759,13 @@ graph LR
     style E fill:#eef,stroke:#33c
 ```
 
-The **capability matrix** — which methods exist for which (vendor, state)
-combination — is two-dimensional:
+**能力矩阵** —— 哪些方法存在于哪些（供应商，状态）组合 —— 是二维的：
 
 ```mermaid
 block-beta
     columns 4
     space header1["Locked"] header2["Unlocked"] header3["ExtendedUnlocked"]
-    basic["Basic Vendor"]:1 b1["unlock()"] b2["read_reg()\nwrite_reg()"] b3["— unreachable —"]
+    basic["Basic Vendor"]:1 b1["unlock()"] b2["read_reg()\nwrite_reg()"] b3["— 不可达 —"]
     memory["Memory Vendor"]:1 m1["unlock()"] m2["read_reg()\nwrite_reg()\nextended_unlock()"] m3["read_reg()\nwrite_reg()\nread_memory()\nwrite_memory()"]
 
     style b1 fill:#ffd,stroke:#aa0
@@ -804,23 +776,22 @@ block-beta
     style m3 fill:#eef,stroke:#33c
 ```
 
-The challenge: express this matrix **entirely at compile time**, with static
-dispatch, so that calling `extended_unlock()` on a basic probe or
-`read_memory()` on an unlocked-but-not-extended handle is a compile error.
+挑战：完全在**编译时**用静态分发表达这个矩阵，
+使得在基本探针上调用 `extended_unlock()` 或在已解锁但未扩展的句柄上调用 `read_memory()` 成为编译错误。
 
-### The Solution: `Jtag<V, S>` with Marker Traits
+### 解决方案：`Jtag<V, S>` 带标记 trait
 
-**Step 1 — State tokens and capability markers:**
+**步骤 1 —— 状态标记和能力标记：**
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Zero-sized state tokens — no runtime cost
+// 零大小状态标记 —— 无运行时成本
 struct Locked;
 struct Unlocked;
 struct ExtendedUnlocked;
 
-// Marker traits express which capabilities each state has
+// 标记 trait 表达每个状态具有哪些能力
 trait HasRegAccess {}
 impl HasRegAccess for Unlocked {}
 impl HasRegAccess for ExtendedUnlocked {}
@@ -829,24 +800,21 @@ trait HasMemAccess {}
 impl HasMemAccess for ExtendedUnlocked {}
 ```
 
-> **Why marker traits, not just concrete states?**
-> Writing `impl<V, S: HasRegAccess> Jtag<V, S>` means `read_reg()` works in
-> *any* state with register access — today that's `Unlocked` and `ExtendedUnlocked`,
-> but if you add `DebugHalted` tomorrow, you just add one line:
-> `impl HasRegAccess for DebugHalted {}`. Every register function works with
-> it automatically — zero code changes.
+> **为什么用标记 trait，而非只是具体状态？**
+> 写 `impl<V, S: HasRegAccess> Jtag<V, S>` 意味着 `read_reg()` 在*任何*有寄存器访问的状态中都有效 —— 今天那是 `Unlocked` 和 `ExtendedUnlocked`，但如果你明天添加 `DebugHalted`，你只需加一行：
+> `impl HasRegAccess for DebugHalted {}`。每个寄存器函数自动与其一起工作 —— 零代码更改。
 
-**Step 2 — Vendor traits (raw operations):**
+**步骤 2 —— 供应商 trait（原始操作）：**
 
 ```rust,ignore
-// Every probe vendor implements these
+// 每个探针供应商实现这些
 trait JtagVendor {
     fn raw_unlock(&mut self);
     fn raw_read_reg(&self, addr: u32) -> u32;
     fn raw_write_reg(&mut self, addr: u32, val: u32);
 }
 
-// Vendors with memory access also implement this super-trait
+// 有内存访问的供应商也实现这个超 trait
 trait JtagMemoryVendor: JtagVendor {
     fn raw_extended_unlock(&mut self);
     fn raw_read_memory(&self, addr: u64, buf: &mut [u8]);
@@ -854,7 +822,7 @@ trait JtagMemoryVendor: JtagVendor {
 }
 ```
 
-**Step 3 — The wrapper with conditional `impl` blocks:**
+**步骤 3 —— 带条件 `impl` 块的包装器：**
 
 ```rust,ignore
 struct Jtag<V, S = Locked> {
@@ -862,7 +830,7 @@ struct Jtag<V, S = Locked> {
     _state: PhantomData<S>,
 }
 
-// Construction — always starts Locked
+// 构造 —— 始终从 Locked 开始
 impl<V: JtagVendor> Jtag<V, Locked> {
     fn new(vendor: V) -> Self {
         Jtag { vendor, _state: PhantomData }
@@ -874,7 +842,7 @@ impl<V: JtagVendor> Jtag<V, Locked> {
     }
 }
 
-// Register I/O — any vendor, any state with HasRegAccess
+// 寄存器 I/O —— 任何供应商，任何有 HasRegAccess 的状态
 impl<V: JtagVendor, S: HasRegAccess> Jtag<V, S> {
     fn read_reg(&self, addr: u32) -> u32 {
         self.vendor.raw_read_reg(addr)
@@ -884,7 +852,7 @@ impl<V: JtagVendor, S: HasRegAccess> Jtag<V, S> {
     }
 }
 
-// Extended unlock — only memory-capable vendors, only from Unlocked
+// 扩展解锁 —— 仅内存能力供应商，仅从 Unlocked
 impl<V: JtagMemoryVendor> Jtag<V, Unlocked> {
     fn extended_unlock(mut self) -> Jtag<V, ExtendedUnlocked> {
         self.vendor.raw_extended_unlock();
@@ -892,7 +860,7 @@ impl<V: JtagMemoryVendor> Jtag<V, Unlocked> {
     }
 }
 
-// Memory I/O — only memory-capable vendors, only ExtendedUnlocked
+// 内存 I/O —— 仅内存能力供应商，仅 ExtendedUnlocked
 impl<V: JtagMemoryVendor, S: HasMemAccess> Jtag<V, S> {
     fn read_memory(&self, addr: u64, buf: &mut [u8]) {
         self.vendor.raw_read_memory(addr, buf);
@@ -903,16 +871,15 @@ impl<V: JtagMemoryVendor, S: HasMemAccess> Jtag<V, S> {
 }
 ```
 
-Each `impl` block encodes one cell (or row) of the capability matrix.
-The compiler enforces the matrix — no runtime checks anywhere.
+每个 `impl` 块编码能力矩阵的一个单元格（或一行）。
+编译器强制矩阵 —— 到处没有运行时检查。
 
-### Vendor Implementations
+### 供应商实现
 
-Adding a vendor means implementing raw methods on **one struct** — no
-per-state struct duplication, no delegation boilerplate:
+添加供应商意味着在**一个结构体**上实现原始方法 —— 无需每状态结构体重复、无委托样板：
 
 ```rust,ignore
-// Vendor A: basic probe — register access only
+// 供应商 A：基本探针 —— 仅寄存器访问
 struct BasicProbe { port: u16 }
 
 impl JtagVendor for BasicProbe {
@@ -920,10 +887,10 @@ impl JtagVendor for BasicProbe {
     fn raw_read_reg(&self, addr: u32) -> u32    { /* DR scan */  0 }
     fn raw_write_reg(&mut self, addr: u32, val: u32) { /* DR scan */ }
 }
-// BasicProbe does NOT impl JtagMemoryVendor.
-// extended_unlock() will not compile on Jtag<BasicProbe, _>.
+// BasicProbe 不 impl JtagMemoryVendor。
+// extended_unlock() 不会在 Jtag<BasicProbe, _> 上编译。
 
-// Vendor B: full-featured probe — registers + memory
+// 供应商 B：全功能探针 —— 寄存器 + 内存
 struct DapProbe { serial: String }
 
 impl JtagVendor for DapProbe {
@@ -939,45 +906,42 @@ impl JtagMemoryVendor for DapProbe {
 }
 ```
 
-### What the Compiler Prevents
+### 编译器防止的内容
 
-| Attempt | Error | Why |
+| 尝试 | 错误 | 为什么 |
 |---------|-------|-----|
-| `Jtag<_, Locked>::read_reg()` | no method `read_reg` | `Locked` doesn't impl `HasRegAccess` |
-| `Jtag<BasicProbe, _>::extended_unlock()` | no method `extended_unlock` | `BasicProbe` doesn't impl `JtagMemoryVendor` |
-| `Jtag<_, Unlocked>::read_memory()` | no method `read_memory` | `Unlocked` doesn't impl `HasMemAccess` |
-| Calling `unlock()` twice | value used after move | `unlock()` consumes `self` |
+| `Jtag<_, Locked>::read_reg()` | 没有方法 `read_reg` | `Locked` 没有 impl `HasRegAccess` |
+| `Jtag<BasicProbe, _>::extended_unlock()` | 没有方法 `extended_unlock` | `BasicProbe` 没有 impl `JtagMemoryVendor` |
+| `Jtag<_, Unlocked>::read_memory()` | 没有方法 `read_memory` | `Unlocked` 没有 impl `HasMemAccess` |
+| 两次调用 `unlock()` | 值在移动后使用 | `unlock()` 消耗 `self` |
 
-All four errors are caught **at compile time**. No panics, no `Option`, no runtime state enum.
+所有四个错误在**编译时**捕获。无 panic、无 `Option`、无运行时状态枚举。
 
-### Writing Generic Functions
+### 编写泛型函数
 
-Functions bind only the axes they care about:
+函数只绑定它们关心的轴：
 
 ```rust,ignore
-/// Works with ANY vendor, ANY state that grants register access.
+/// 适用于任何供应商、任何有寄存器访问权限的状态。
 fn read_idcode<V: JtagVendor, S: HasRegAccess>(jtag: &Jtag<V, S>) -> u32 {
     jtag.read_reg(0x00)
 }
 
-/// Only compiles for memory-capable vendors in ExtendedUnlocked state.
+/// 仅对内存能力供应商在 ExtendedUnlocked 状态下编译。
 fn dump_firmware<V: JtagMemoryVendor, S: HasMemAccess>(jtag: &Jtag<V, S>) {
     let mut buf = [0u8; 256];
     jtag.read_memory(0x0800_0000, &mut buf);
 }
 ```
 
-`read_idcode` doesn't care whether you're in `Unlocked` or `ExtendedUnlocked` —
-it only requires `HasRegAccess`. This is where marker traits pay off over
-hardcoding specific states in signatures.
+`read_idcode` 不关心你在 `Unlocked` 还是 `ExtendedUnlocked` —— 它只要求 `HasRegAccess`。这是标记 trait 比在签名中硬编码特定状态更胜一筹的地方。
 
-### Same Pattern, Different Domain: Storage Backends
+### 相同模式，不同领域：存储后端
 
-The dual-axis technique isn't hardware-specific. Here's the same structure
-for a storage layer where some backends support transactions:
+双轴技术不是硬件特有的。以下是某些后端支持事务的存储层的相同结构：
 
 ```rust,ignore
-// States
+// 状态
 struct Closed;
 struct Open;
 struct InTransaction;
@@ -986,7 +950,7 @@ trait HasReadWrite {}
 impl HasReadWrite for Open {}
 impl HasReadWrite for InTransaction {}
 
-// Vendor traits
+// 供应商 trait
 trait StorageBackend {
     fn raw_open(&mut self);
     fn raw_read(&self, key: &[u8]) -> Option<Vec<u8>>;
@@ -999,7 +963,7 @@ trait TransactionalBackend: StorageBackend {
     fn raw_rollback(&mut self);
 }
 
-// Wrapper
+// 包装器
 struct Store<B, S = Closed> { backend: B, _s: PhantomData<S> }
 
 impl<B: StorageBackend> Store<B, Closed> {
@@ -1018,49 +982,42 @@ impl<B: TransactionalBackend> Store<B, InTransaction> {
 }
 ```
 
-A flat-file backend implements `StorageBackend` only — `begin()` won't
-compile. A database backend adds `TransactionalBackend` — the full
-`Open → InTransaction → Open` cycle becomes available.
+平面文件后端只实现 `StorageBackend` —— `begin()` 不会编译。数据库后端添加 `TransactionalBackend` —— 完整的 `Open → InTransaction → Open` 循环变得可用。
 
-### When to Reach for This Pattern
+### 何时采用此模式
 
-| Signal | Why dual-axis fits |
+| 信号 | 为什么双轴适合 |
 |--------|--------------------|
-| Two independent axes: "who provides it" and "what state is it in" | The `impl` block matrix directly encodes both |
-| Some providers have strictly more capabilities than others | Super-trait (`MemoryVendor: Vendor`) + conditional `impl` |
-| Misusing state or capability is a safety/correctness bug | Compile-time prevention > runtime checks |
-| You want static dispatch (no vtables) | `PhantomData` + generics = zero-cost |
+| 两个独立轴："谁提供它"和"它处于什么状态" | `impl` 块矩阵直接编码两者 |
+| 有些提供者严格比其他提供者有更多能力 | 超 trait（`MemoryVendor: Vendor`）+ 条件 `impl` |
+| 滥用状态或能力是安全/正确性 bug | 编译时预防 > 运行时检查 |
+| 你想要静态分发（无虚表） | `PhantomData` + 泛型 = 零成本 |
 
-| Signal | Consider something simpler |
+| 信号 | 考虑更简单的方案 |
 |--------|---------------------------|
-| Only one axis varies (state OR vendor, not both) | Single-axis typestate or plain trait objects |
-| Three or more independent axes | Config Trait Pattern (above) bundles axes into associated types |
-| Runtime polymorphism is acceptable | `enum` state + `dyn` dispatch is simpler |
+| 只有一个轴变化（状态或供应商，而非两者） | 单轴类型状态或普通 trait 对象 |
+| 三个或更多独立轴 | Config Trait 模式（上文）将轴捆绑到关联类型 |
+| 运行时多态可接受 | `enum` 状态 + `dyn` 分发更简单 |
 
-> **When two axes become three or more:**
-> If you find yourself writing `Handle<V, S, D, T>` — vendor, state, debug
-> level, transport — the generic parameter list is telling you something.
-> Consider collapsing the *vendor* axis into an associated-type config trait
-> (the [Config Trait Pattern](#config-trait-pattern--taming-generic-parameter-explosion)
-> from earlier in this chapter), keeping only the *state* axis as a generic
-> parameter: `Handle<Cfg, S>`. The config trait bundles `type Vendor`, `type Transport`, etc.
-> into one parameter, and the state axis retains its compile-time transition guarantees.
-> This is a natural evolution, not a rewrite — you lift vendor-related types
-> into `Cfg` and leave the typestate machinery untouched.
+> **当两个轴变成三个或更多时：**
+> 如果你发现自己写 `Handle<V, S, D, T>` —— 供应商、状态、调试级别、传输 —— 泛型参数列表在告诉你一些事情。
+> 考虑将*供应商*轴折叠到关联类型配置 trait（[前文的 Config Trait 模式](#config-trait-pattern--taming-generic-parameter-explosion)），
+> 只将*状态*轴保留为泛型参数：`Handle<Cfg, S>`。Config trait 将 `type Vendor`、`type Transport` 等捆绑到一个参数中，
+> 状态轴保留其编译时转换保证。
+> 这是自然演进，不是重写 —— 你将供应商相关类型提升到 `Cfg` 中，保持类型状态机制不变。
 
-> **Key Takeaway:** The dual-axis pattern is the intersection of typestate and
-> trait-based abstraction. Each `impl` block maps to one cell of the
-> (vendor × state) matrix. The compiler enforces the entire matrix — no
-> runtime state checks, no impossible-state panics, no cost.
+> **关键要点：**双轴模式是类型状态和基于 trait 的抽象的交叉点。
+> 每个 `impl` 块映射到（供应商 × 状态）矩阵的一个单元格。
+> 编译器强制整个矩阵 —— 无运行时状态检查、无不可能状态 panic、无成本。
 
 ---
 
-### Exercise: Type-Safe State Machine ★★ (~30 min)
+### 练习：类型安全状态机 ★★（约 30 分钟）
 
-Build a traffic light state machine using the type-state pattern. The light must transition `Red → Green → Yellow → Red` and no other order should be possible.
+使用类型状态模式构建红绿灯状态机。灯必须按 `Red → Green → Yellow → Red` 转换，其他顺序是不可能的。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -1105,12 +1062,12 @@ fn main() {
     let light = light.caution();     // Yellow
     let _light = light.stop();       // Red
 
-    // light.caution(); // ❌ Compile error: no method `caution` on Red
-    // TrafficLight::new().stop(); // ❌ Compile error: no method `stop` on Red
+    // light.caution(); // ❌ 编译错误：Red 上没有方法 `caution`
+    // TrafficLight::new().stop(); // ❌ 编译错误：Red 上没有方法 `stop`
 }
 ```
 
-**Key takeaway**: Invalid transitions are compile errors, not runtime panics.
+**关键要点**：无效转换是编译错误，不是运行时 panic。
 
 </details>
 

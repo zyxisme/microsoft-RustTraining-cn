@@ -1,71 +1,71 @@
-# 14. Crate Architecture and API Design 🟡
+# 14. Crate 架构与 API 设计 🟡
 
-> **What you'll learn:**
-> - Module layout conventions and re-export strategies
-> - The public API design checklist for polished crates
-> - Ergonomic parameter patterns: `impl Into`, `AsRef`, `Cow`
-> - "Parse, don't validate" with `TryFrom` and validated types
-> - Feature flags, conditional compilation, and workspace organization
+> **学习目标：**
+> - 模块布局约定和重导出策略
+> - 公共 API 设计检查清单
+> - 人体工学参数模式：`impl Into`、`AsRef`、`Cow`
+> - "先解析，不要验证"：`TryFrom` 和验证类型
+> - 功能标志、条件编译和工作区组织
 
-## Module Layout Conventions
+## 模块布局约定
 
 ```text
 my_crate/
 ├── Cargo.toml
 ├── src/
-│   ├── lib.rs          # Crate root — re-exports and public API
-│   ├── config.rs       # Feature module
-│   ├── parser/         # Complex module with sub-modules
-│   │   ├── mod.rs      # or parser.rs at parent level (Rust 2018+)
+│   ├── lib.rs          # Crate 根 — 重导出和公共 API
+│   ├── config.rs       # 功能模块
+│   ├── parser/         # 复杂模块，包含子模块
+│   │   ├── mod.rs      # 或 parser.rs（Rust 2018+）
 │   │   ├── lexer.rs
 │   │   └── ast.rs
-│   ├── error.rs        # Error types
-│   └── utils.rs        # Internal helpers (pub(crate))
+│   ├── error.rs        # 错误类型
+│   └── utils.rs        # 内部辅助函数（pub(crate)）
 ├── tests/
-│   └── integration.rs  # Integration tests
+│   └── integration.rs  # 集成测试
 ├── benches/
-│   └── perf.rs         # Benchmarks
+│   └── perf.rs         # 基准测试
 └── examples/
     └── basic.rs        # cargo run --example basic
 ```
 
 ```rust
-// lib.rs — curate your public API with re-exports:
+// lib.rs — 通过重导出管理公共 API：
 mod config;
 mod error;
 mod parser;
 mod utils;
 
-// Re-export what users need:
+// 重导出用户需要的部分：
 pub use config::Config;
 pub use error::Error;
 pub use parser::Parser;
 
-// Public types are at the crate root — users write:
+// 公共类型在 crate 根级别 — 用户这样写：
 // use my_crate::Config;
-// NOT: use my_crate::config::Config;
+// 而不是：use my_crate::config::Config;
 ```
 
-**Visibility modifiers**:
+**可见性修饰符**：
 
-| Modifier | Visible To |
+| 修饰符 | 可见范围 |
 |----------|-----------|
-| `pub` | Everyone |
-| `pub(crate)` | This crate only |
-| `pub(super)` | Parent module |
-| `pub(in path)` | Specific ancestor module |
-| (none) | Current module and its children |
+| `pub` | 所有地方 |
+| `pub(crate)` | 仅当前 crate |
+| `pub(super)` | 父模块 |
+| `pub(in path)` | 特定祖先模块 |
+| （无） | 当前模块及其子模块 |
 
-### Public API Design Checklist
+### 公共 API 设计检查清单
 
-1. **Accept references, return owned** — `fn process(input: &str) -> String`
-2. **Use `impl Trait` for parameters** — `fn read(r: impl Read)` instead of `fn read<R: Read>(r: R)` for cleaner signatures
-3. **Return `Result`, not `panic!`** — let callers decide how to handle errors
-4. **Implement standard traits** — `Debug`, `Display`, `Clone`, `Default`, `From`/`Into`
-5. **Make invalid states unrepresentable** — use type states and newtypes
-6. **Follow the builder pattern for complex configuration** — with type-state if fields are required
-7. **Seal traits you don't want users to implement** — `pub trait Sealed: private::Sealed {}`
-8. **Mark types and functions `#[must_use]`** — prevents silent discard of important `Result`s, guards, or values. Apply to any type where ignoring the return value is almost certainly a bug:
+1. **接收引用，返回所有权** — `fn process(input: &str) -> String`
+2. **参数使用 `impl Trait`** — `fn read(r: impl Read)` 而不是 `fn read<R: Read>(r: R)`，签名更简洁
+3. **返回 `Result`，不要 `panic!`** — 让调用者决定如何处理错误
+4. **实现标准 trait** — `Debug`、`Display`、`Clone`、`Default`、`From`/`Into`
+5. **使无效状态不可表示** — 使用类型状态和 newtype
+6. **复杂配置使用构建器模式** — 如果字段是必需的，使用类型状态
+7. **密封你不希望用户实现的 trait** — `pub trait Sealed: private::Sealed {}`
+8. **为类型和函数标记 `#[must_use]`** — 防止重要 `Result`、守卫或值被无声丢弃。适用于任何忽略返回值几乎肯定是 bug 的类型：
    ```rust
    #[must_use = "dropping the guard immediately releases the lock"]
    pub struct LockGuard<'a, T> { /* ... */ }
@@ -75,7 +75,7 @@ pub use parser::Parser;
    ```
 
 ```rust
-// Sealed trait pattern — users can use but not implement:
+// 密封 trait 模式 — 用户可以使用但不能实现：
 mod private {
     pub trait Sealed {}
 }
@@ -84,7 +84,7 @@ pub trait DatabaseDriver: private::Sealed {
     fn connect(&self, url: &str) -> Connection;
 }
 
-// Only types in THIS crate can implement Sealed → only we can implement DatabaseDriver
+// 只有这个 crate 内的类型可以实现 Sealed → 只有我们能实现 DatabaseDriver
 pub struct PostgresDriver;
 impl private::Sealed for PostgresDriver {}
 impl DatabaseDriver for PostgresDriver {
@@ -92,64 +92,56 @@ impl DatabaseDriver for PostgresDriver {
 }
 ```
 
-> **`#[non_exhaustive]`** — mark public enums and structs so that adding variants
-> or fields is not a breaking change. Downstream crates must use a wildcard arm
-> (`_ =>`) in match statements, and cannot construct the type with struct literal
-> syntax:
+> **`#[non_exhaustive]`** — 为公共枚举和结构体标记此属性，这样添加变体或字段不是破坏性变更。下游 crate 必须在 match 语句中使用通配符 arm（`_ =>`），并且不能使用结构体字面量语法构造该类型：
 > ```rust
 > #[non_exhaustive]
 > pub enum DiagError {
 >     Timeout,
 >     HardwareFault,
->     // Adding a new variant in a future release is NOT a semver break.
+>     // 在未来版本中添加新变体不是语义版本兼容突破。
 > }
 > ```
 
-### Ergonomic Parameter Patterns — `impl Into`, `AsRef`, `Cow`
+### 人体工学参数模式 — `impl Into`、`AsRef`、`Cow`
 
-One of Rust's most impactful API patterns is accepting the **most general type** in
-function parameters, so callers don't need repetitive `.to_string()`, `&*s`, or `.as_ref()`
-at every call site. This is the Rust-specific version of "be liberal in what you accept."
+Rust 最有影响力的 API 模式之一是在函数参数中接受**最通用的类型**，这样调用者不需要在每个调用点重复 `.to_string()`、`&*s` 或 `.as_ref()`。这是 Rust 版本的"对你接受的要宽容"。
 
-#### `impl Into<T>` — Accept Anything Convertible
+#### `impl Into<T>` — 接受任何可转换的类型
 
 ```rust
-// ❌ Friction: callers must convert manually
+// ❌ 摩擦：调用者必须手动转换
 fn connect(host: String, port: u16) -> Connection {
     // ...
 }
-connect("localhost".to_string(), 5432);  // Annoying .to_string()
-connect(hostname.clone(), 5432);          // Unnecessary clone if we already have String
+connect("localhost".to_string(), 5432);  // 烦人的 .to_string()
+connect(hostname.clone(), 5432);          // 如果已有 String 却不必要的 clone
 
-// ✅ Ergonomic: accept anything that converts to String
+// ✅ 人体工学：接受任何可以转换为 String 的类型
 fn connect(host: impl Into<String>, port: u16) -> Connection {
-    let host = host.into();  // Convert once, inside the function
+    let host = host.into();  // 在函数内部转换一次
     // ...
 }
-connect("localhost", 5432);     // &str — zero friction
-connect(hostname, 5432);        // String — moved, no clone
-connect(arc_str, 5432);         // Arc<str> if From is implemented
+connect("localhost", 5432);     // &str — 零摩擦
+connect(hostname, 5432);        // String — 移动，无 clone
+connect(arc_str, 5432);         // Arc<str> 如果实现了 From
 ```
 
-This works because Rust's `From`/`Into` trait pair provides blanket conversions.
-When you accept `impl Into<T>`, you're saying: "give me anything that knows how to
-become a `T`."
+这是可行的，因为 Rust 的 `From`/`Into` trait 对提供了一致的转换。当你接受 `impl Into<T>` 时，你是在说："给我任何知道如何变成 `T` 的东西"。
 
-#### `AsRef<T>` — Borrow as a Reference
+#### `AsRef<T>` — 作为引用借用
 
-`AsRef<T>` is the borrowing counterpart to `Into<T>`. Use it when you only need
-to *read* the data, not take ownership:
+`AsRef<T>` 是 `Into<T>` 的借用对应物。当你只需要*读取*数据而不需要获取所有权时使用它：
 
 ```rust
 use std::path::Path;
 
-// ❌ Forces callers to convert to &Path
+// ❌ 强制调用者转换为 &Path
 fn file_exists(path: &Path) -> bool {
     path.exists()
 }
-file_exists(Path::new("/tmp/test.txt"));  // Awkward
+file_exists(Path::new("/tmp/test.txt"));  // 尴尬
 
-// ✅ Accept anything that can behave as a &Path
+// ✅ 接受任何可以表现为 &Path 的类型
 fn file_exists(path: impl AsRef<Path>) -> bool {
     path.as_ref().exists()
 }
@@ -158,7 +150,7 @@ file_exists(String::from("/tmp/test.txt"));      // String ✅
 file_exists(Path::new("/tmp/test.txt"));         // &Path ✅
 file_exists(PathBuf::from("/tmp/test.txt"));     // PathBuf ✅
 
-// Same pattern for string-like parameters:
+// 字符串参数的相同模式：
 fn log_message(msg: impl AsRef<str>) {
     println!("[LOG] {}", msg.as_ref());
 }
@@ -166,73 +158,68 @@ log_message("hello");                    // &str ✅
 log_message(String::from("hello"));      // String ✅
 ```
 
-#### `Cow<T>` — Clone on Write
+#### `Cow<T>` — 写时克隆
 
-`Cow<'a, T>` (Clone on Write) delays allocation until mutation is needed.
-It holds either a borrowed `&T` or an owned `T::Owned`. This is perfect when
-most calls don't need to modify the data:
+`Cow<'a, T>`（Clone on Write）将内存分配延迟到需要修改时才进行。它持有借用的 `&T` 或有权的 `T::Owned`。这非常适合大多数调用不需要修改数据的场景：
 
 ```rust
 use std::borrow::Cow;
 
-/// Normalizes a diagnostic message — only allocates if changes are needed.
+/// 规范化诊断消息 — 仅在需要修改时分配。
 fn normalize_message(msg: &str) -> Cow<'_, str> {
     if msg.contains('\t') || msg.contains('\r') {
-        // Must allocate — we need to modify the content
+        // 必须分配 — 我们需要修改内容
         Cow::Owned(msg.replace('\t', "    ").replace('\r', ""))
     } else {
-        // No allocation — just borrow the original
+        // 不分配 — 只需借用原始数据
         Cow::Borrowed(msg)
     }
 }
 
-// Most messages pass through without allocation:
-let clean = normalize_message("All tests passed");          // Borrowed — free
-let fixed = normalize_message("Error:\tfailed\r\n");        // Owned — allocated
+// 大多数消息无需分配即可通过：
+let clean = normalize_message("All tests passed");          // 借用 — 免费
+let fixed = normalize_message("Error:\tfailed\r\n");        // 拥有 — 已分配
 
-// Cow<str> implements Deref<Target=str>, so it works like &str:
+// Cow<str> 实现了 Deref<Target=str>，所以它像 &str 一样工作：
 println!("{}", clean);
 println!("{}", fixed.to_uppercase());
 ```
 
-#### Quick Reference: Which to Use
+#### 快速参考：使用哪个
 
 ```text
-Do you need ownership of the data inside the function?
-├── YES → impl Into<T>
-│         "Give me anything that can become a T"
-└── NO  → Do you only need to read it?
-     ├── YES → impl AsRef<T> or &T
-     │         "Give me anything I can borrow as a &T"
-     └── MAYBE (might need to modify sometimes?)
+你需要在函数内部获取数据的所有权吗？
+├── 是 → impl Into<T>
+│         "给我任何可以变成 T 的东西"
+└── 否  → 你只需要读取它吗？
+     ├── 是 → impl AsRef<T> 或 &T
+     │         "给我任何我可以借用为 &T 的东西"
+     └── 也许（有时需要修改？）
           └── Cow<'_, T>
-              "Borrow if possible, clone only when you must"
+              "尽可能借用，必须时再克隆"
 ```
 
-| Pattern | Ownership | Allocation | When to use |
+| 模式 | 所有权 | 分配 | 使用场景 |
 |---------|-----------|------------|-------------|
-| `&str` | Borrowed | Never | Simple string params |
-| `impl AsRef<str>` | Borrowed | Never | Accept String, &str, etc. — read only |
-| `impl Into<String>` | Owned | On conversion | Accept &str, String — will store/own |
-| `Cow<'_, str>` | Either | Only if modified | Processing that usually doesn't modify |
-| `&[u8]` / `impl AsRef<[u8]>` | Borrowed | Never | Byte-oriented APIs |
+| `&str` | 借用 | 从不 | 简单字符串参数 |
+| `impl AsRef<str>` | 借用 | 从不 | 接受 String、&str 等 — 只读 |
+| `impl Into<String>` | 拥有 | 转换时 | 接受 &str、String — 将存储/拥有 |
+| `Cow<'_, str>` | 两者皆可 | 仅修改时 | 通常不修改的处理 |
+| `&[u8]` / `impl AsRef<[u8]>` | 借用 | 从不 | 字节导向 API |
 
-> **`Borrow<T>` vs `AsRef<T>`**: Both provide `&T`, but `Borrow<T>` additionally
-> guarantees that `Eq`, `Ord`, and `Hash` are **consistent** between the original
-> and borrowed form. This is why `HashMap<String, V>::get()` accepts `&Q where String: Borrow<Q>` — not `AsRef`. Use `Borrow` when the borrowed form is used
-> as a lookup key; use `AsRef` for general "give me a reference" parameters.
+> **`Borrow<T>` vs `AsRef<T>`**：两者都提供 `&T`，但 `Borrow<T>` 额外地保证原始形式和借用形式之间的 `Eq`、`Ord` 和 `Hash` 是**一致的**。这就是为什么 `HashMap<String, V>::get()` 接受 `&Q where String: Borrow<Q>` — 而不是 `AsRef`。当借用形式用作查找键时使用 `Borrow`；用于一般的"给我一个引用"参数时使用 `AsRef`。
 
-#### Composing Conversions in APIs
+#### 在 API 中组合转换
 
 ```rust
-/// A well-designed diagnostic API using ergonomic parameters:
+/// 一个使用人体工学参数的诊断 API：
 pub struct DiagRunner {
     name: String,
     config_path: PathBuf,
 }
 
 impl DiagRunner {
-    /// Accept any string-like type for name, any path-like type for config.
+    /// 接受任何类似字符串的类型作为名称，任何类似路径的类型作为配置。
     pub fn new(
         name: impl Into<String>,
         config_path: impl Into<PathBuf>,
@@ -243,13 +230,13 @@ impl DiagRunner {
         }
     }
 
-    /// Accept any AsRef<str> for read-only lookup.
+    /// 接受任何 AsRef<str> 用于只读查找。
     pub fn get_result(&self, test_name: impl AsRef<str>) -> Option<&TestResult> {
         self.results.get(test_name.as_ref())
     }
 }
 
-// All of these work with zero caller friction:
+// 所有这些都可以零摩擦地工作：
 let runner = DiagRunner::new("GPU Diag", "/etc/diag_tool/config.json");
 let runner = DiagRunner::new(format!("Diag-{}", node_id), config_path);
 let runner = DiagRunner::new(name_string, path_buf);
@@ -257,103 +244,99 @@ let runner = DiagRunner::new(name_string, path_buf);
 
 ***
 
-## Case Study: Designing a Public Crate API — Before & After
+## 案例研究：设计公共 Crate API — 前后对比
 
-A real-world example of evolving a stringly-typed internal API into an ergonomic, type-safe public API. Consider a configuration parser crate:
+一个将字符串类型的内部 API 演进为符合人体工程学的、类型安全的公共 API 的真实例子。考虑一个配置解析 crate：
 
-**Before** (stringly-typed, easy to misuse):
+**之前**（字符串类型，容易误用）：
 
 ```rust
-// ❌ All parameters are strings — no compile-time validation
+// ❌ 所有参数都是字符串 — 没有编译时验证
 pub fn parse_config(path: &str, format: &str, strict: bool) -> Result<Config, String> {
-    // What formats are valid? "json"? "JSON"? "Json"?
-    // Is path a file path or URL?
-    // What does "strict" even mean?
+    // 哪些格式是有效的？"json"？"JSON"？"Json"？
+    // path 是文件路径还是 URL？
+    // "strict" 到底是什么意思？
     todo!()
 }
 ```
 
-**After** (type-safe, self-documenting):
+**之后**（类型安全、自文档化）：
 
 ```rust
 use std::path::Path;
 
-/// Supported configuration formats.
+/// 支持的配置格式。
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]  // Adding formats won't break downstream
+#[non_exhaustive]  // 添加格式不会破坏下游
 pub enum Format {
     Json,
     Toml,
     Yaml,
 }
 
-/// Controls parsing strictness.
+/// 控制解析严格性。
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Strictness {
-    /// Reject unknown fields (default for libraries)
+    /// 拒绝未知字段（库默认值）
     #[default]
     Strict,
-    /// Ignore unknown fields (useful for forward-compatible configs)
+    /// 忽略未知字段（对向前兼容的配置有用）
     Lenient,
 }
 
 pub fn parse_config(
-    path: &Path,          // Type-enforced: must be a filesystem path
-    format: Format,       // Enum: impossible to pass invalid format
-    strictness: Strictness,  // Named alternatives, not a bare bool
+    path: &Path,          // 类型强制：必须是文件系统路径
+    format: Format,       // 枚举：不可能传递无效格式
+    strictness: Strictness,  // 命名替代，不是裸露的 bool
 ) -> Result<Config, ConfigError> {
     todo!()
 }
 ```
 
-**What improved**:
+**改进点**：
 
-| Aspect | Before | After |
+| 方面 | 之前 | 之后 |
 |--------|--------|-------|
-| Format validation | Runtime string comparison | Compile-time enum |
-| Path type | Raw `&str` (could be anything) | `&Path` (filesystem-specific) |
-| Strictness | Mystery `bool` | Self-documenting enum |
-| Error type | `String` (opaque) | `ConfigError` (structured) |
-| Extensibility | Breaking changes | `#[non_exhaustive]` |
+| 格式验证 | 运行时字符串比较 | 编译时枚举 |
+| 路径类型 | 原始 `&str`（可以是任何东西） | `&Path`（文件系统特定） |
+| 严格性 | 神秘的 `bool` | 自文档化枚举 |
+| 错误类型 | `String`（不透明） | `ConfigError`（结构化） |
+| 可扩展性 | 破坏性变更 | `#[non_exhaustive]` |
 
-> **Rule of thumb**: If you find yourself writing a `match` on string values,
-> consider replacing the parameter with an enum. If a parameter is a boolean
-> that isn't obvious from context, use a two-variant enum instead.
+> **经验法则**：如果你发现自己要对字符串值写 `match`，考虑用枚举替换该参数。如果参数是一个上下文不明显布尔值，使用双变体枚举代替。
 
 ***
 
-### Parse Don't Validate — `TryFrom` and Validated Types
+### 先解析，不要验证 — `TryFrom` 和验证类型
 
-"Parse, don't validate" is a principle that says: **don't check data and then pass
-around the raw unchecked form — instead, parse it into a type that can only exist
-if the data is valid.** Rust's `TryFrom` trait is the standard tool for this.
+"先解析，不要验证"是一个原则：**不要检查数据后再传递原始未检查形式——而是将其解析成一种只有在数据有效时才能存在的类型。** Rust 的 `TryFrom` trait 是实现这一点的标准工具。
 
-#### The Problem: Validation Without Enforcement
+#### 问题：没有强制执行的验证
 
 ```rust
-// ❌ Validate-then-use: nothing prevents using an invalid value after the check
+// ❌ 验证后使用：检查后无法阻止使用无效值
 fn process_port(port: u16) {
     if port == 0 || port > 65535 {
-        panic!("Invalid port");           // We checked, but...
+        panic!("Invalid port");           // 我们检查了，但是...
     }
-    start_server(port);                    // What if someone calls start_server(0) directly?
+    start_server(port);                    // 如果有人直接调用 start_server(0) 怎么办？
 }
 
-// ❌ Stringly-typed: an email is just a String — any garbage gets through
+// ❌ 字符串类型：电子邮件只是一个 String — 任何垃圾都能通过
 fn send_email(to: String, body: String) {
-    // Is `to` actually a valid email? We don't know.
-    // Someone could pass "not-an-email" and we only find out at the SMTP server.
+    // `to` 实际上是有效的电子邮件吗？我们不知道。
+    // 有人可能传入 "not-an-email"，我们只在 SMTP 服务器才发现。
 }
 ```
 
-#### The Solution: Parse Into Validated Newtypes with `TryFrom`
+#### 解决方案：用 `TryFrom` 解析为验证过的 Newtype
 
 ```rust
 use std::convert::TryFrom;
 use std::fmt;
 
-/// A validated TCP port number (1–65535).
-/// If you have a `Port`, it is guaranteed valid.
+/// 验证过的 TCP 端口号（1–65535）。
+/// 如果你有一个 `Port`，它就是有效的。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Port(u16);
 
@@ -390,27 +373,27 @@ impl fmt::Display for PortError {
 
 impl std::error::Error for PortError {}
 
-// Now the type system enforces validity:
+// 现在类型系统强制执行有效性：
 fn start_server(port: Port) {
-    // No validation needed — Port can only be constructed via TryFrom,
-    // which already verified it's valid.
+    // 不需要验证 — Port 只能通过 TryFrom 构造，
+    // TryFrom 已经验证它是有效的。
     println!("Listening on port {}", port.get());
 }
 
-// Usage:
+// 用法：
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let port = Port::try_from(8080)?;   // ✅ Validated once at the boundary
-    start_server(port);                  // No re-validation anywhere downstream
+    let port = Port::try_from(8080)?;   // ✅ 在边界处验证一次
+    start_server(port);                  // 下游无需重新验证
 
     let bad = Port::try_from(0);         // ❌ Err(PortError::Zero)
     Ok(())
 }
 ```
 
-#### Real-World Example: Validated IPMI Address
+#### 真实案例：验证过的 IPMI 地址
 
 ```rust
-/// A validated IPMI slave address (0x20–0xFE, even only).
+/// 验证过的 IPMI 从机地址（0x20–0xFE，仅偶数）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IpmiAddr(u8);
 
@@ -449,16 +432,16 @@ impl IpmiAddr {
     pub fn get(&self) -> u8 { self.0 }
 }
 
-// Downstream code never needs to re-check:
+// 下游代码永远不需要重新检查：
 fn send_ipmi_command(addr: IpmiAddr, cmd: u8, data: &[u8]) -> Result<Vec<u8>, IpmiError> {
-    // addr.get() is guaranteed to be a valid, even IPMI address
+    // addr.get() 保证是有效的、偶数的 IPMI 地址
     raw_ipmi_send(addr.get(), cmd, data)
 }
 ```
 
-#### Parsing Strings with `FromStr`
+#### 用 `FromStr` 解析字符串
 
-For types that are commonly parsed from text (CLI args, config files), implement `FromStr`:
+对于常从文本解析的类型（CLI 参数、配置文件），实现 `FromStr`：
 
 ```rust
 use std::str::FromStr;
@@ -472,22 +455,22 @@ impl FromStr for Port {
     }
 }
 
-// Now works with .parse():
-let port: Port = "8080".parse()?;   // Validates in one step
+// 现在可以与 .parse() 一起使用：
+let port: Port = "8080".parse()?;   // 一步验证
 
-// And with clap CLI parsing:
+// 与 clap CLI 解析一起使用：
 // #[derive(Parser)]
 // struct Args {
 //     #[arg(short, long)]
-//     port: Port,   // clap calls FromStr automatically
+//     port: Port,   // clap 自动调用 FromStr
 // }
 ```
 
-#### `TryFrom` Chain for Complex Validation
+#### `TryFrom` 链用于复杂验证
 
 ```rust
-// Stub types for this example — in production these would be in
-// separate modules with their own TryFrom implementations.
+// 本例中的存根类型 — 生产环境中这些会在
+// 各自模块中，有自己的 TryFrom 实现。
 ```
 
 ```rust
@@ -516,7 +499,7 @@ let port: Port = "8080".parse()?;   // Validates in one step
 # impl From<serde_json::Error> for ConfigError {
 #     fn from(e: serde_json::Error) -> Self { ConfigError::InvalidHost(e.to_string()) }
 # }
-/// A validated configuration that can only exist if all fields are valid.
+/// 只有所有字段都有效时才能存在的验证配置。
 pub struct ValidConfig {
     pub host: Hostname,
     pub port: Port,
@@ -538,36 +521,33 @@ impl TryFrom<RawConfig> for ValidConfig {
     }
 }
 
-// Parse once at the boundary, use the validated type everywhere:
+// 在边界处解析一次，在内部各处使用验证后的类型：
 fn load_config(path: &str) -> Result<ValidConfig, ConfigError> {
     let raw: RawConfig = serde_json::from_str(&std::fs::read_to_string(path)?)?;
-    ValidConfig::try_from(raw)  // All validation happens here
+    ValidConfig::try_from(raw)  // 所有验证在此发生
 }
 ```
 
-#### Summary: Validate vs Parse
+#### 总结：验证 vs 解析
 
-| Approach | Data checked? | Compiler enforces validity? | Re-validation needed? |
+| 方法 | 数据已检查？ | 编译器强制有效性？ | 需要重新验证？ |
 |----------|:---:|:---:|:---:|
-| Runtime checks (if/assert) | ✅ | ❌ | Every function boundary |
-| Validated newtype + `TryFrom` | ✅ | ✅ | Never — type is proof |
+| 运行时检查（if/assert） | ✅ | ❌ | 每个函数边界 |
+| 验证过的 newtype + `TryFrom` | ✅ | ✅ | 从不 — 类型即证明 |
 
-The rule: **parse at the boundary, use validated types everywhere inside.**
-Raw strings, integers, and byte slices enter your system, get parsed into
-validated types via `TryFrom`/`FromStr`, and from that point forward the type
-system guarantees they're valid.
+规则：**在边界处解析，在内部各处使用验证过的类型。** 原始字符串、整数和字节切片进入系统，通过 `TryFrom`/`FromStr` 解析成验证过的类型，从那时起类型系统保证它们是有效的。
 
-### Feature Flags and Conditional Compilation
+### 功能标志和条件编译
 
 ```toml
 ```
 
 # Cargo.toml
 [features]
-default = ["json"]          # Enabled by default
-json = ["dep:serde_json"]   # Enables JSON support
-xml = ["dep:quick-xml"]     # Enables XML support
-full = ["json", "xml"]      # Meta-feature: enables all
+default = ["json"]          # 默认启用
+json = ["dep:serde_json"]   # 启用 JSON 支持
+xml = ["dep:quick-xml"]     # 启用 XML 支持
+full = ["json", "xml"]      # 元功能：启用所有
 
 [dependencies]
 serde = "1"
@@ -575,7 +555,7 @@ serde_json = { version = "1", optional = true }
 quick-xml = { version = "0.31", optional = true }
 
 ```rust
-// Conditional compilation based on features:
+// 基于功能的条件编译：
 #[cfg(feature = "json")]
 pub fn to_json<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_string(value).unwrap()
@@ -586,19 +566,19 @@ pub fn to_xml<T: serde::Serialize>(value: &T) -> String {
     quick_xml::se::to_string(value).unwrap()
 }
 
-// Compile error if a required feature isn't enabled:
+// 如果未启用所需功能则编译错误：
 #[cfg(not(any(feature = "json", feature = "xml")))]
 compile_error!("At least one format feature (json, xml) must be enabled");
 ```
 
-**Best practices**:
-- Keep `default` features minimal — users can opt in
-- Use `dep:` syntax (Rust 1.60+) for optional dependencies to avoid creating implicit features
-- Document features in your README and crate-level docs
+**最佳实践**：
+- 保持 `default` 功能最小化 — 用户可以选择加入
+- 使用 `dep:` 语法（Rust 1.60+）处理可选依赖，避免创建隐式功能
+- 在 README 和 crate 级文档中记录功能
 
-### Workspace Organization
+### 工作区组织
 
-For large projects, use a Cargo workspace to share dependencies and build artifacts:
+对于大型项目，使用 Cargo 工作区共享依赖和构建产物：
 
 ```toml
 ```
@@ -606,92 +586,90 @@ For large projects, use a Cargo workspace to share dependencies and build artifa
 # Root Cargo.toml
 [workspace]
 members = [
-    "core",         # Shared types and traits
-    "parser",       # Parsing library
-    "server",       # Binary — the main application
-    "client",       # Client library
-    "cli",          # CLI binary
+    "core",         # 共享类型和 trait
+    "parser",       # 解析库
+    "server",       # 二进制文件 — 主应用程序
+    "client",       # 客户端库
+    "cli",          # CLI 二进制文件
 ]
 
-# Shared dependency versions:
+# 共享依赖版本：
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 
-# In each member's Cargo.toml:
+# 在每个成员的 Cargo.toml 中：
 # [dependencies]
 # serde = { workspace = true }
 
 ```rust
 
-**Benefits**:
+**好处**：
 ```
 
-- Single `Cargo.lock` — all crates use the same dependency versions
-- `cargo test --workspace` runs all tests
-- Shared build cache — compiling one crate benefits all
-- Clean dependency boundaries between components
+- 单一 `Cargo.lock` — 所有 crate 使用相同的依赖版本
+- `cargo test --workspace` 运行所有测试
+- 共享构建缓存 — 编译一个 crate 惠及所有
+- 组件之间干净的依赖边界
 
-### `.cargo/config.toml`: Project-Level Configuration
+### `.cargo/config.toml`：项目级配置
 
-The `.cargo/config.toml` file (at the workspace root or in `$HOME/.cargo/`)
-customizes Cargo behavior without modifying `Cargo.toml`:
+`.cargo/config.toml` 文件（在工作区根目录或 `$HOME/.cargo/`）自定义 Cargo 行为，无需修改 `Cargo.toml`：
 
 ```toml
 ```
 
 # .cargo/config.toml
 
-# Default target for this workspace
+# 此工作区的默认目标
 [build]
 target = "x86_64-unknown-linux-gnu"
 
-# Custom runner — e.g., run via QEMU for cross-compiled binaries
+# 自定义运行器 — 例如，通过 QEMU 运行交叉编译的二进制文件
 [target.aarch64-unknown-linux-gnu]
 runner = "qemu-aarch64-static"
 linker = "aarch64-linux-gnu-gcc"
 
-# Cargo aliases — custom shortcut commands
+# Cargo 别名 — 自定义快捷命令
 [alias]
-xt = "test --workspace --release"        # cargo xt = run all tests in release
-ci = "clippy --workspace -- -D warnings" # cargo ci = lint with errors on warnings
-cov = "llvm-cov --workspace"             # cargo cov = coverage (requires cargo-llvm-cov)
+xt = "test --workspace --release"        # cargo xt = 以 release 模式运行所有测试
+ci = "clippy --workspace -- -D warnings" # cargo ci = 警告时 lint 出错
+cov = "llvm-cov --workspace"             # cargo cov = 覆盖率（需要 cargo-llvm-cov）
 
-# Environment variables for build scripts
+# 构建脚本的环境变量
 [env]
 IPMI_LIB_PATH = "/usr/lib/bmc"
 
-# Use a custom registry (for internal packages)
+# 使用自定义注册表（用于内部包）
 # [registries.internal]
 # index = "https://gitlab.internal/crates/index"
 
 ```rust
 
-Common configuration patterns:
+常见配置模式：
 
 ```
 
-| Setting | Purpose | Example |
+| 设置 | 用途 | 示例 |
 |---------|---------|---------|
-| `[build] target` | Default compilation target | `x86_64-unknown-linux-musl` for static builds |
-| `[target.X] runner` | How to run the binary | `"qemu-aarch64-static"` for cross-compiled |
-| `[target.X] linker` | Which linker to use | `"aarch64-linux-gnu-gcc"` |
-| `[alias]` | Custom `cargo` subcommands | `xt = "test --workspace"` |
-| `[env]` | Build-time environment variables | Library paths, feature toggles |
-| `[net] offline` | Prevent network access | `true` for air-gapped builds |
+| `[build] target` | 默认编译目标 | `x86_64-unknown-linux-musl` 用于静态构建 |
+| `[target.X] runner` | 如何运行二进制文件 | `"qemu-aarch64-static"` 用于交叉编译 |
+| `[target.X] linker` | 使用哪个链接器 | `"aarch64-linux-gnu-gcc"` |
+| `[alias]` | 自定义 `cargo` 子命令 | `xt = "test --workspace"` |
+| `[env]` | 构建时环境变量 | 库路径、功能切换 |
+| `[net] offline` | 阻止网络访问 | `true` 用于气隙构建 |
 
-### Compile-Time Environment Variables: `env!()` and `option_env!()`
+### 编译时环境变量：`env!()` 和 `option_env!()`
 
-Rust can embed environment variables into the binary at compile time — useful for
-version strings, build metadata, and configuration:
+Rust 可以在编译时将环境变量嵌入二进制文件 — 用于版本字符串、构建元数据和配置：
 
 ```rust
-// env!() — panics at compile time if the variable is missing
-const VERSION: &str = env!("CARGO_PKG_VERSION"); // "0.1.0" from Cargo.toml
-const PKG_NAME: &str = env!("CARGO_PKG_NAME");   // Crate name from Cargo.toml
+// env!() — 如果变量缺失则在编译时 panic
+const VERSION: &str = env!("CARGO_PKG_VERSION"); // 来自 Cargo.toml 的 "0.1.0"
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");   // 来自 Cargo.toml 的 crate 名称
 
-// option_env!() — returns Option<&str>, doesn't panic if missing
+// option_env!() — 返回 Option<&str>，缺失时不会 panic
 const BUILD_SHA: Option<&str> = option_env!("GIT_SHA");
 const BUILD_TIME: Option<&str> = option_env!("BUILD_TIMESTAMP");
 
@@ -706,18 +684,18 @@ fn print_version() {
 }
 ```
 
-Cargo automatically sets many useful environment variables:
+Cargo 自动设置许多有用的环境变量：
 
-| Variable | Value | Use case |
+| 变量 | 值 | 使用场景 |
 |----------|-------|----------|
-| `CARGO_PKG_VERSION` | `"1.2.3"` | Version reporting |
-| `CARGO_PKG_NAME` | `"diag_tool"` | Binary identification |
-| `CARGO_PKG_AUTHORS` | From `Cargo.toml` | About/help text |
-| `CARGO_MANIFEST_DIR` | Absolute path to `Cargo.toml` | Locating test data files |
-| `OUT_DIR` | Build output directory | `build.rs` code generation target |
-| `TARGET` | Target triple | Platform-specific logic in `build.rs` |
+| `CARGO_PKG_VERSION` | `"1.2.3"` | 版本报告 |
+| `CARGO_PKG_NAME` | `"diag_tool"` | 二进制标识 |
+| `CARGO_PKG_AUTHORS` | 来自 `Cargo.toml` | 关于/帮助文本 |
+| `CARGO_MANIFEST_DIR` | `Cargo.toml` 的绝对路径 | 定位测试数据文件 |
+| `OUT_DIR` | 构建输出目录 | `build.rs` 代码生成目标 |
+| `TARGET` | 目标三元组 | `build.rs` 中的平台特定逻辑 |
 
-You can set custom env vars from `build.rs`:
+你可以从 `build.rs` 设置自定义环境变量：
 ```rust
 // build.rs
 fn main() {
@@ -726,13 +704,12 @@ fn main() {
 }
 ```
 
-### `cfg_attr`: Conditional Attributes
+### `cfg_attr`：条件属性
 
-`cfg_attr` applies an attribute **only when** a condition is true. This is more
-targeted than `#[cfg()]`, which includes/excludes entire items:
+`cfg_attr` 仅在条件为真时应用属性。这比 `#[cfg()]` 更有针对性，`#[cfg()]` 包含/排除整个条目：
 
 ```rust
-// Derive Serialize only when the "serde" feature is enabled:
+// 仅当启用了 "serde" 功能时才派生 Serialize：
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DiagResult {
@@ -740,44 +717,44 @@ pub struct DiagResult {
     pub passed: bool,
     pub message: String,
 }
-// Without "serde" feature: no serde dependency needed at all
-// With "serde" feature: DiagResult is serializable
+// 没有 "serde" 功能：根本不需要 serde 依赖
+// 有 "serde" 功能：DiagResult 是可序列化的
 
-// Conditional attribute for testing:
-#[cfg_attr(test, derive(PartialEq))]  // Only derive PartialEq in test builds
+// 测试的条件属性：
+#[cfg_attr(test, derive(PartialEq))]  // 仅在测试构建中派生 PartialEq
 pub struct LargeStruct { /* ... */ }
 
-// Platform-specific function attributes:
+// 平台特定的函数属性：
 #[cfg_attr(target_os = "linux", link_name = "ioctl")]
 #[cfg_attr(target_os = "freebsd", link_name = "__ioctl")]
 extern "C" fn platform_ioctl(fd: i32, request: u64) -> i32;
 ```
 
-| Pattern | What it does |
+| 模式 | 作用 |
 |---------|-------------|
-| `#[cfg(feature = "x")]` | Include/exclude the entire item |
-| `#[cfg_attr(feature = "x", derive(Foo))]` | Add `derive(Foo)` only when feature "x" is on |
-| `#[cfg_attr(test, allow(unused))]` | Suppress warnings only in test builds |
-| `#[cfg_attr(doc, doc = "...")]` | Documentation visible only in `cargo doc` |
+| `#[cfg(feature = "x")]` | 包含/排除整个条目 |
+| `#[cfg_attr(feature = "x", derive(Foo))]` | 仅当功能 "x" 启用时添加 `derive(Foo)` |
+| `#[cfg_attr(test, allow(unused))]` | 仅在测试构建中抑制警告 |
+| `#[cfg_attr(doc, doc = "...")]` | 仅在 `cargo doc` 中可见的文档 |
 
-### `cargo deny` and `cargo audit`: Supply-Chain Security
+### `cargo deny` 和 `cargo audit`：供应链安全
 
 ```bash
 ```
 
-# Install security audit tools
+# 安装安全审计工具
 cargo install cargo-deny
 cargo install cargo-audit
 
-# Check for known vulnerabilities in dependencies
+# 检查依赖中的已知漏洞
 cargo audit
 
-# Comprehensive checks: licenses, bans, advisories, sources
+# 综合检查：许可证、禁止事项、建议、来源
 cargo deny check
 
 ```rust
 
-Configure `cargo deny` with a `deny.toml` at the workspace root:
+使用 `deny.toml` 配置 `cargo deny`（在工作区根目录）：
 
 ```
 
@@ -786,40 +763,40 @@ Configure `cargo deny` with a `deny.toml` at the workspace root:
 
 # deny.toml
 [advisories]
-vulnerability = "deny"      # Fail on known vulnerabilities
-unmaintained = "warn"        # Warn on unmaintained crates
+vulnerability = "deny"      # 已知漏洞时失败
+unmaintained = "warn"        # 未维护 crate 时警告
 
 [licenses]
 allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]
-deny = ["GPL-3.0"]          # Reject copyleft licenses
+deny = ["GPL-3.0"]          # 拒绝 copyleft 许可证
 
 [bans]
-multiple-versions = "warn"  # Warn if multiple versions of same crate
+multiple-versions = "warn"  # 同一 crate 多个版本时警告
 deny = [
 
 ```rust
-    { name = "openssl" },   # Force use of rustls instead
+    { name = "openssl" },   # 强制使用 rustls
 ]
 
 [sources]
-allow-git = []              # No git dependencies in production
+allow-git = []              # 生产环境无 git 依赖
 ```
 
-| Tool | Purpose | When to run |
-|------|---------|-------------|
-| `cargo audit` | Check for known CVEs in dependencies | CI pipeline, pre-release |
-| `cargo deny check` | Licenses, bans, advisories, sources | CI pipeline |
-| `cargo deny check licenses` | License compliance only | Before open-sourcing |
-| `cargo deny check bans` | Prevent specific crates | Enforce architecture decisions |
+| 工具 | 用途 | 运行时间 |
+|------|---------|---------|
+| `cargo audit` | 检查依赖中的已知 CVE | CI 管道、发布前 |
+| `cargo deny check` | 许可证、禁止事项、建议、来源 | CI 管道 |
+| `cargo deny check licenses` | 仅许可证合规性 | 开源前 |
+| `cargo deny check bans` | 阻止特定 crate | 强制执行架构决策 |
 
-### Doc Tests: Tests Inside Documentation
+### 文档测试：文档内的测试
 
-Rust doc comments (`///`) can contain code blocks that are **compiled and run as tests**:
+Rust 文档注释（`///`）可以包含**作为测试编译和运行的代码块**：
 
 ```rust
-/// Parses a diagnostic fault code from a string.
+/// 从字符串解析诊断故障代码。
 ///
-/// # Examples
+/// # 示例
 ///
 /// ```
 /// use my_crate::parse_fc;
@@ -828,7 +805,7 @@ Rust doc comments (`///`) can contain code blocks that are **compiled and run as
 /// assert_eq!(fc, 12345);
 /// ```
 ///
-/// Invalid input returns an error:
+/// 无效输入返回错误：
 ///
 /// ```
 /// use my_crate::parse_fc;
@@ -844,20 +821,20 @@ pub fn parse_fc(input: &str) -> Result<u32, ParseError> {
 ```
 
 ```bash
-cargo test --doc  # Run only doc tests
-cargo test        # Runs unit + integration + doc tests
+cargo test --doc  # 仅运行文档测试
+cargo test        # 运行单元 + 集成 + 文档测试
 ```
 
-**Module-level documentation** uses `//!` at the top of a file:
+**模块级文档**使用文件顶部的 `//!`：
 
 ```rust
-//! # Diagnostic Framework
+//! # 诊断框架
 //!
-//! This crate provides the core diagnostic execution engine.
-//! It supports running diagnostic tests, collecting results,
-//! and reporting to the BMC via IPMI.
+//! 此 crate 提供核心诊断执行引擎。
+//! 它支持运行诊断测试、收集结果，
+//! 并通过 IPMI 向 BMC 报告。
 //!
-//! ## Quick Start
+//! ## 快速开始
 //!
 //! ```no_run
 //! use diag_framework::Framework;
@@ -867,46 +844,42 @@ cargo test        # Runs unit + integration + doc tests
 //! ```
 ```
 
-### Benchmarking with Criterion
+### 使用 Criterion 进行基准测试
 
-> **Full coverage**: See the [Benchmarking with criterion](ch13-testing-and-benchmarking-patterns.md#benchmarking-with-criterion)
-> section in Chapter 13 (Testing and Benchmarking Patterns) for complete
-> `criterion` setup, API examples, and a comparison table vs `cargo bench`.
-> Below is a quick-reference for architecture-specific usage.
+> **完整覆盖**：关于完整的 `criterion` 设置、API 示例和与 `cargo bench` 的对比表，请参阅第 13 章（测试和基准测试模式）中的[使用 criterion 进行基准测试](ch13-testing-and-benchmarking-patterns.md#benchmarking-with-criterion)部分。
+> 以下是架构特定用法的快速参考。
 
-When benchmarking your crate's public API, place benchmarks in `benches/` and
-keep them focused on the hot path — typically parsers, serializers, or
-validation boundaries:
+对 crate 的公共 API 进行基准测试时，将基准测试放在 `benches/` 中，并保持它们专注于热路径 — 通常是解析器、序列化器或验证边界：
 
 ```bash
-cargo bench                  # Run all benchmarks
-cargo bench -- parse_config  # Run specific benchmark
-# Results in target/criterion/ with HTML reports
+cargo bench                  # 运行所有基准测试
+cargo bench -- parse_config  # 运行特定基准测试
+# 结果在 target/criterion/ 中，包含 HTML 报告
 ```
 
-> **Key Takeaways — Architecture & API Design**
-> - Accept the most general type (`impl Into`, `impl AsRef`, `Cow`); return the most specific
-> - Parse Don't Validate: use `TryFrom` to create types that are valid by construction
-> - `#[non_exhaustive]` on public enums prevents breaking changes when adding variants
-> - `#[must_use]` catches silent discards of important values
+> **关键要点 — 架构与 API 设计**
+> - 接受最通用的类型（`impl Into`、`impl AsRef`、`Cow`）；返回最具体的类型
+> - 先解析，不要验证：使用 `TryFrom` 创建默认有效的类型
+> - 公共枚举上的 `#[non_exhaustive]` 在添加变体时防止破坏性变更
+> - `#[must_use]` 捕获重要值的无声丢弃
 
-> **See also:** [Ch 9 — Error Handling](ch09-error-handling-patterns.md) for error type design in public APIs. [Ch 13 — Testing](ch13-testing-and-benchmarking-patterns.md) for testing your crate's public API.
+> **另请参阅：** [第 9 章 — 错误处理](ch09-error-handling-patterns.md) 了解公共 API 中的错误类型设计。[第 13 章 — 测试](ch13-testing-and-benchmarking-patterns.md) 了解如何测试 crate 的公共 API。
 
 ---
 
-### Exercise: Crate API Refactoring ★★ (~30 min)
+### 练习：Crate API 重构 ★★（约 30 分钟）
 
-Refactor the following "stringly-typed" API into one that uses `TryFrom`, newtypes, and builder pattern:
+将以下"字符串类型"API 重构为使用 `TryFrom`、newtype 和构建器模式的 API：
 
 ```rust,ignore
-// BEFORE: Easy to misuse
+// 之前：容易误用
 fn create_server(host: &str, port: &str, max_conn: &str) -> Server { ... }
 ```
 
-Design a `ServerConfig` with validated types `Host`, `Port` (1–65535), and `MaxConnections` (1–10000) that reject invalid values at parse time.
+设计一个 `ServerConfig`，包含验证类型 `Host`、`Port`（1–65535）和 `MaxConnections`（1–10000），在解析时拒绝无效值。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 #[derive(Debug, Clone)]
@@ -966,7 +939,7 @@ fn main() {
     );
     println!("{config:?}");
 
-    // Invalid values caught at parse time:
+    // 无效值在解析时被捕获：
     assert!(Host::try_from("").is_err());
     assert!(Port::try_from(0).is_err());
     assert!(MaxConnections::try_from(99999).is_err());
@@ -976,4 +949,3 @@ fn main() {
 </details>
 
 ***
-

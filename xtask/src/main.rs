@@ -9,44 +9,44 @@ use std::process::Command;
 const BOOKS: &[(&str, &str, &str, &str)] = &[
     (
         "c-cpp-book",
-        "Rust for C/C++ Programmers",
-        "Move semantics, RAII, FFI, embedded, no_std",
+        "C/C++程序员的Rust",
+        "移动语义、RAII、FFI、嵌入式、no_std",
         "bridge",
     ),
     (
         "csharp-book",
-        "Rust for C# Programmers",
-        "Best for Swift / C# / Java developers",
+        "C#程序员的Rust",
+        "最适合Swift/C#/Java开发者",
         "bridge",
     ),
     (
         "python-book",
-        "Rust for Python Programmers",
-        "Dynamic → static typing, GIL-free concurrency",
+        "Python程序员的Rust",
+        "动态→静态类型、GIL无关的并发",
         "bridge",
     ),
     (
         "async-book",
-        "Async Rust: From Futures to Production",
-        "Tokio, streams, cancellation safety",
+        "异步Rust：从Future到生产级",
+        "Tokio、流、取消安全性",
         "deep-dive",
     ),
     (
         "rust-patterns-book",
-        "Rust Patterns",
-        "Pin, allocators, lock-free structures, unsafe",
+        "Rust模式",
+        "Pin、分配器、无锁数据结构、unsafe",
         "advanced",
     ),
     (
         "type-driven-correctness-book",
-        "Type-Driven Correctness",
-        "Type-state, phantom types, capability tokens",
+        "类型驱动的正确性",
+        "类型状态、幽灵类型、能力令牌",
         "expert",
     ),
     (
         "engineering-book",
-        "Rust Engineering Practices",
-        "Build scripts, cross-compilation, coverage, CI/CD",
+        "Rust工程实践",
+        "构建脚本、交叉编译、覆盖率、CI/CD",
         "practices",
     ),
 ];
@@ -148,11 +148,11 @@ fn build_to(dir_name: &str) {
 
 fn category_label(cat: &str) -> &str {
     match cat {
-        "bridge" => "Bridge",
-        "deep-dive" => "Deep Dive",
-        "advanced" => "Advanced",
-        "expert" => "Expert",
-        "practices" => "Practices",
+        "bridge" => "桥接",
+        "deep-dive" => "深度探索",
+        "advanced" => "进阶",
+        "expert" => "专家",
+        "practices" => "工程实践",
         _ => cat,
     }
 }
@@ -174,11 +174,11 @@ fn write_landing_page(site: &Path) {
 
     let html = format!(
         r##"<!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rust Training Books</title>
+  <title>Rust 训练手册</title>
   <style>
     :root {{
       --bg: #1a1a2e;
@@ -264,21 +264,21 @@ fn write_landing_page(site: &Path) {
   </style>
 </head>
 <body>
-  <h1>🦀 <span>Rust</span> Training Books</h1>
-  <p class="subtitle">Pick the guide that matches your background</p>
+  <h1>🦀 <span>Rust</span> 训练手册</h1>
+  <p class="subtitle">选择与你的背景相匹配的学习指南</p>
 
   <div class="legend">
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-bridge)"></span> Bridge &mdash; learn Rust from another language</span>
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-deep-dive)"></span> Deep Dive</span>
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-advanced)"></span> Advanced</span>
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-expert)"></span> Expert</span>
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-practices)"></span> Practices</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-bridge)"></span> 桥接 &mdash; 从另一门语言学习Rust</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-deep-dive)"></span> 深度探索</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-advanced)"></span> 进阶</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-expert)"></span> 专家</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-practices)"></span> 工程实践</span>
   </div>
 
   <div class="grid">
 {cards}
   </div>
-  <footer>Built with <a href="https://rust-lang.github.io/mdBook/" style="color:var(--accent)">mdBook</a></footer>
+  <footer>基于 <a href="https://rust-lang.github.io/mdBook/" style="color:var(--accent)">mdBook</a> 构建</footer>
 </body>
 </html>
 "##

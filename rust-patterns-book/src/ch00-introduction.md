@@ -1,140 +1,139 @@
-# Rust Patterns & Engineering How-Tos
+# Rust 模式与工程实践
 
-## Speaker Intro
+## 讲师简介
 
-- Principal Firmware Architect in Microsoft SCHIE (Silicon and Cloud Hardware Infrastructure Engineering) team
-- Industry veteran with expertise in security, systems programming (firmware, operating systems, hypervisors), CPU and platform architecture, and C++ systems
-- Started programming in Rust in 2017 (@AWS EC2), and have been in love with the language ever since
+- 微软 SCHIE（硅与云硬件基础设施工程）团队首席固件架构师
+- 拥有安全、系统编程（固件、操作系统、虚拟机监控器）、CPU 和平台架构以及 C++ 系统领域专业经验的行业资深专家
+- 2017 年在 AWS EC2 开始使用 Rust 编程，此后一直热爱这门语言
 
 ---
 
-A practical guide to intermediate-and-above Rust patterns that arise in real codebases. This is not a language tutorial — it assumes you can write basic Rust and want to level up. Each chapter isolates one concept, explains when and why to use it, and provides compilable examples with inline exercises.
+这是一本关于真实代码库中出现的中级及以上 Rust 模式的实用指南。这不是一门语言教程 —— 它假设你已经能够编写基本的 Rust 并希望提升水平。每一章都围绕一个概念展开，解释何时以及为什么使用它，并提供带有嵌入式练习的可编译示例。
 
-## Who This Is For
+## 适用对象
 
-- Developers who have finished *The Rust Programming Language* but struggle with "how do I actually design this?"
-- C++/C# engineers translating production systems into Rust
-- Anyone who has hit a wall with generics, trait bounds, or lifetime errors and wants a systematic toolkit
+- 已经学完《Rust 编程语言》但在实际设计中遇到困难的开发者
+- 将生产系统翻译成 Rust 的 C++/C# 工程师
+- 在泛型、trait 约束或生命周期错误面前碰壁，希望获得系统化工具包的任何人
 
-## Prerequisites
+## 前置知识
 
-Before starting, you should be comfortable with:
-- Ownership, borrowing, and lifetimes (basic level)
-- Enums, pattern matching, and `Option`/`Result`
-- Structs, methods, and basic traits (`Display`, `Debug`, `Clone`)
-- Cargo basics: `cargo build`, `cargo test`, `cargo run`
+开始之前，你应该熟悉以下内容：
+- 所有权、借用和生命周期（基础级别）
+- 枚举、模式匹配和 `Option`/`Result`
+- 结构体、方法和基本 trait（`Display`、`Debug`、`Clone`）
+- Cargo 基础：`cargo build`、`cargo test`、`cargo run`
 
-## How to Use This Book
+## 如何使用本书
 
-### Difficulty Legend
+### 难度图例
 
-Each chapter is tagged with a difficulty level:
+每一章都标有难度级别：
 
-| Symbol | Level | Meaning |
+| 符号 | 级别 | 含义 |
 |--------|-------|---------|
-| 🟢 | Fundamentals | Core concepts every Rust developer needs |
-| 🟡 | Intermediate | Patterns used in production codebases |
-| 🔴 | Advanced | Deep language mechanics — revisit as needed |
+| 🟢 | 基础 | 每个 Rust 开发者都需要掌握的核心概念 |
+| 🟡 | 中级 | 生产代码库中使用的模式 |
+| 🔴 | 高级 | 深度语言机制 —— 需要时回顾即可 |
 
-### Pacing Guide
+### 学习进度指南
 
-| Chapters | Topic | Suggested Time | Checkpoint |
+| 章节 | 主题 | 建议时间 | 里程碑 |
 |----------|-------|----------------|------------|
-| **Part I: Type-Level Patterns** | | | |
-| 1. Generics 🟢 | Monomorphization, const generics, `const fn` | 1–2 hours | Can explain when `dyn Trait` beats generics |
-| 2. Traits 🟡 | Associated types, GATs, blanket impls, vtables | 3–4 hours | Can design a trait with associated types |
-| 3. Newtype & Type-State 🟡 | Zero-cost safety, compile-time FSMs | 2–3 hours | Can build a type-state builder pattern |
-| 4. PhantomData 🔴 | Lifetime branding, variance, drop check | 2–3 hours | Can explain why `PhantomData<fn(T)>` differs from `PhantomData<T>` |
-| **Part II: Concurrency & Runtime** | | | |
-| 5. Channels 🟢 | `mpsc`, crossbeam, `select!`, actors | 1–2 hours | Can implement a channel-based worker pool |
-| 6. Concurrency 🟡 | Threads, rayon, Mutex, RwLock, atomics | 2–3 hours | Can pick the right sync primitive for a scenario |
-| 7. Closures 🟢 | `Fn`/`FnMut`/`FnOnce`, combinators | 1–2 hours | Can write a higher-order function that accepts closures |
-| 8. Smart Pointers 🟡 | Box, Rc, Arc, RefCell, Cow, Pin | 2–3 hours | Can explain when to use each smart pointer |
-| **Part III: Systems & Production** | | | |
-| 9. Error Handling 🟢 | thiserror, anyhow, `?` operator | 1–2 hours | Can design an error type hierarchy |
-| 10. Serialization 🟡 | serde, zero-copy, binary data | 2–3 hours | Can write a custom serde deserializer |
-| 11. Unsafe 🔴 | Superpowers, FFI, UB pitfalls, allocators | 2–3 hours | Can wrap unsafe code in a sound safe API |
-| 12. Macros 🟡 | `macro_rules!`, proc macros, `syn`/`quote` | 2–3 hours | Can write a declarative macro with `tt` munching |
-| 13. Testing 🟢 | Unit/integration/doc tests, proptest, criterion | 1–2 hours | Can set up property-based tests |
-| 14. API Design 🟡 | Module layout, ergonomic APIs, feature flags | 2–3 hours | Can apply the "parse, don't validate" pattern |
-| 15. Async 🔴 | Futures, Tokio, common pitfalls | 1–2 hours | Can identify async anti-patterns |
-| **Appendices** | | | |
-| Reference Card | Quick-look trait bounds, lifetimes, patterns | As needed | — |
-| Capstone Project | Type-safe task scheduler | 4–6 hours | Submit a working implementation |
+| **第一部分：类型级模式** | | | |
+| 1. 泛型 🟢 | 单态化、代码膨胀的权衡、泛型 vs 枚举 vs trait 对象、const 泛型、`const fn` | 1–2 小时 | 能解释何时 `dyn Trait` 优于泛型 |
+| 2. Traits 🟡 | 关联类型、GAT、 blanket 实现、虚表 | 3–4 小时 | 能设计带有关联类型的 trait |
+| 3. Newtype 与类型状态 🟡 | 零成本安全、编译时 FSM、构建器模式 | 2–3 小时 | 能构建类型状态构建器模式 |
+| 4. PhantomData 🔴 | 生命周期标记、方差、drop 检查 | 2–3 小时 | 能解释为何 `PhantomData<fn(T)>` 不同于 `PhantomData<T>` |
+| **第二部分：并发与运行时** | | | |
+| 5. 通道 🟢 | `mpsc`、crossbeam、`select!`、actor | 1–2 小时 | 能实现基于通道的工作池 |
+| 6. 并发 🟡 | 线程、rayon、Mutex、RwLock、原子类型 | 2–3 小时 | 能为场景选择正确的同步原语 |
+| 7. 闭包 🟢 | `Fn`/`FnMut`/`FnOnce`、组合器 | 1–2 小时 | 能编写接受闭包的高阶函数 |
+| 8. 智能指针 🟡 | Box、Rc、Arc、RefCell、Cow、Pin | 2–3 小时 | 能解释何时使用每种智能指针 |
+| **第三部分：系统与生产环境** | | | |
+| 9. 错误处理 🟢 | thiserror、anyhow、`?` 操作符 | 1–2 小时 | 能设计错误类型层次结构 |
+| 10. 序列化 🟡 | serde、零拷贝、二进制数据 | 2–3 小时 | 能编写自定义 serde 反序列化器 |
+| 11. Unsafe 🔴 | 超能力、FFI、UB 陷阱、分配器 | 2–3 小时 | 能将 unsafe 代码包装在 sound 的安全 API 中 |
+| 12. 宏 🟡 | `macro_rules!`、proc 宏、`syn`/`quote` | 2–3 小时 | 能编写带有 `tt` 吞噬的声明式宏 |
+| 13. 测试 🟢 | 单元/集成/文档测试、proptest、criterion | 1–2 小时 | 能设置基于属性的测试 |
+| 14. API 设计 🟡 | 模块布局、人体工程学 API、功能标志 | 2–3 小时 | 能应用"解析，不要验证"模式 |
+| 15. Async 🔴 | Future、Tokio、常见陷阱 | 1–2 小时 | 能识别 async 反模式 |
+| **附录** | | | |
+| 速查卡 | 快速查看 trait 约束、生命周期、模式 | 按需 | — |
+| Capstone 项目 | 类型安全的任务调度器 | 4–6 小时 | 提交一个可工作的实现 |
 
-**Total estimated time**: 30–45 hours for thorough study with exercises.
+**预计总时间**：认真学习和做练习需要 30–45 小时。
 
-### Working Through Exercises
+### 完成练习的方法
 
-Every chapter ends with a hands-on exercise. For maximum learning:
+每一章末尾都有实践练习。为了获得最大学习效果：
 
-1. **Try it yourself first** — spend at least 15 minutes before opening the solution
-2. **Type the code** — don't copy-paste; typing builds muscle memory
-3. **Modify the solution** — add a feature, change a constraint, break something on purpose
-4. **Check cross-references** — most exercises combine patterns from multiple chapters
+1. **先自己尝试** —— 打开解决方案前至少花 15 分钟
+2. **亲手敲代码** —— 不要复制粘贴；打字能建立肌肉记忆
+3. **修改解决方案** —— 添加一个功能、改变一个约束、有意破坏一些东西
+4. **检查交叉引用** —— 大多数练习结合了多章的模式
 
-The capstone project (Appendix) ties together patterns from across the book into a single, production-quality system.
+Capstone 项目（附录）将书中的模式整合到一个完整的生产级系统中。
 
-## Table of Contents
+## 目录
 
-### Part I: Type-Level Patterns
+### 第一部分：类型级模式
 
-**[1. Generics — The Full Picture](ch01-generics-the-full-picture.md)** 🟢
-Monomorphization, code bloat trade-offs, generics vs enums vs trait objects, const generics, `const fn`.
+**[1. 泛型 —— 全景图](ch01-generics-the-full-picture.md)** 🟢
+单态化、代码膨胀权衡、泛型 vs 枚举 vs trait 对象、const 泛型、`const fn`。
 
-**[2. Traits In Depth](ch02-traits-in-depth.md)** 🟡
-Associated types, GATs, blanket impls, marker traits, vtables, HRTBs, extension traits, enum dispatch.
+**[2. 深入 Trait](ch02-traits-in-depth.md)** 🟡
+关联类型、GAT、blanket 实现、标记 trait、虚表、HRTB、扩展 trait、枚举分发。
 
-**[3. The Newtype and Type-State Patterns](ch03-the-newtype-and-type-state-patterns.md)** 🟡
-Zero-cost type safety, compile-time state machines, builder patterns, config traits.
+**[3. Newtype 与类型状态模式](ch03-the-newtype-and-type-state-patterns.md)** 🟡
+零成本类型安全、编译时状态机、构建器模式、配置 trait。
 
-**[4. PhantomData — Types That Carry No Data](ch04-phantomdata-types-that-carry-no-data.md)** 🔴
-Lifetime branding, unit-of-measure pattern, drop check, variance.
+**[4. PhantomData —— 不携带数据的类型](ch04-phantomdata-types-that-carry-no-data.md)** 🔴
+生命周期标记、单位量模式、drop 检查、方差。
 
-### Part II: Concurrency & Runtime
+### 第二部分：并发与运行时
 
-**[5. Channels and Message Passing](ch05-channels-and-message-passing.md)** 🟢
-`std::sync::mpsc`, crossbeam, `select!`, backpressure, actor pattern.
+**[5. 通道与消息传递](ch05-channels-and-message-passing.md)** 🟢
+`std::sync::mpsc`、crossbeam、`select!`、背压、actor 模式。
 
-**[6. Concurrency vs Parallelism vs Threads](ch06-concurrency-vs-parallelism-vs-threads.md)** 🟡
-OS threads, scoped threads, rayon, Mutex/RwLock/Atomics, Condvar, OnceLock, lock-free patterns.
+**[6. 并发 vs 并行 vs 线程](ch06-concurrency-vs-parallelism-vs-threads.md)** 🟡
+操作系统线程、作用域线程、rayon、Mutex/RwLock/原子类型、Condvar、OnceLock、无锁模式。
 
-**[7. Closures and Higher-Order Functions](ch07-closures-and-higher-order-functions.md)** 🟢
-`Fn`/`FnMut`/`FnOnce`, closures as parameters/return values, combinators, higher-order APIs.
+**[7. 闭包与高阶函数](ch07-closures-and-higher-order-functions.md)** 🟢
+`Fn`/`FnMut`/`FnOnce`、闭包作为参数/返回值、组合器、高阶 API。
 
-**[8. Smart Pointers and Interior Mutability](ch08-smart-pointers-and-interior-mutability.md)** 🟡
-Box, Rc, Arc, Weak, Cell/RefCell, Cow, Pin, ManuallyDrop.
+**[8. 智能指针与内部可变性](ch08-smart-pointers-and-interior-mutability.md)** 🟡
+Box、Rc、Arc、Weak、Cell/RefCell、Cow、Pin、ManuallyDrop。
 
-### Part III: Systems & Production
+### 第三部分：系统与生产环境
 
-**[9. Error Handling Patterns](ch09-error-handling-patterns.md)** 🟢
-thiserror vs anyhow, `#[from]`, `.context()`, `?` operator, panics.
+**[9. 错误处理模式](ch09-error-handling-patterns.md)** 🟢
+thiserror vs anyhow、`#[from]`、`.context()`、`?` 操作符、panic。
 
-**[10. Serialization, Zero-Copy, and Binary Data](ch10-serialization-zero-copy-and-binary-data.md)** 🟡
-serde fundamentals, enum representations, zero-copy deserialization, `repr(C)`, `bytes::Bytes`.
+**[10. 序列化、零拷贝与二进制数据](ch10-serialization-zero-copy-and-binary-data.md)** 🟡
+serde 基础、枚举表示、零拷贝反序列化、`repr(C)`、`bytes::Bytes`。
 
-**[11. Unsafe Rust — Controlled Danger](ch11-unsafe-rust-controlled-danger.md)** 🔴
-Five superpowers, sound abstractions, FFI, UB pitfalls, arena/slab allocators.
+**[11. Unsafe Rust —— 受控的危险](ch11-unsafe-rust-controlled-danger.md)** 🔴
+五大超能力、sound 抽象、FFI、UB 陷阱、arena/slab 分配器。
 
-**[12. Macros — Code That Writes Code](ch12-macros-code-that-writes-code.md)** 🟡
-`macro_rules!`, when (not) to use macros, proc macros, derive macros, `syn`/`quote`.
+**[12. 宏 —— 编写代码的代码](ch12-macros-code-that-writes-code.md)** 🟡
+`macro_rules!`、何时（不）使用宏、proc 宏、derive 宏、`syn`/`quote`。
 
-**[13. Testing and Benchmarking Patterns](ch13-testing-and-benchmarking-patterns.md)** 🟢
-Unit/integration/doc tests, proptest, criterion, mocking strategies.
+**[13. 测试与基准测试模式](ch13-testing-and-benchmarking-patterns.md)** 🟢
+单元/集成/文档测试、proptest、criterion、模拟策略。
 
-**[14. Crate Architecture and API Design](ch14-crate-architecture-and-api-design.md)** 🟡
-Module layout, API design checklist, ergonomic parameters, feature flags, workspaces.
+**[14. Crate 架构与 API 设计](ch14-crate-architecture-and-api-design.md)** 🟡
+模块布局、API 设计清单、人体工程学参数、功能标志、工作空间。
 
-**[15. Async/Await Essentials](ch15-asyncawait-essentials.md)** 🔴
-Futures, Tokio quick-start, common pitfalls. (For deep async coverage, see our Async Rust Training.)
+**[15. Async/Await  Essentials](ch15-asyncawait-essentials.md)** 🔴
+Future、Tokio 快速入门、常见陷阱。（深度 async 覆盖，请参阅我们的 Async Rust Training。）
 
-### Appendices
+### 附录
 
-**[Summary and Reference Card](ch17-summary-and-reference-card.md)**
-Pattern decision guide, trait bounds cheat sheet, lifetime elision rules, further reading.
+**[总结与速查卡](ch17-summary-and-reference-card.md)**
+模式决策指南、trait 约束速查表、生命周期省略规则、延伸阅读。
 
-**[Capstone Project: Type-Safe Task Scheduler](ch18-capstone-project.md)**
-Integrate generics, traits, typestate, channels, error handling, and testing into a complete system.
+**[Capstone 项目：类型安全的任务调度器](ch18-capstone-project.md)**
+将泛型、trait、类型状态、通道、错误处理和测试整合到一个完整系统中。
 
 ***
-

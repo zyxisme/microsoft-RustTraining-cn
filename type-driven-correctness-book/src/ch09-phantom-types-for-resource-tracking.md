@@ -1,44 +1,43 @@
-# Phantom Types for Resource Tracking 🟡
+# 幽灵类型用于资源跟踪 🟡
 
-> **What you'll learn:** How `PhantomData` markers encode register width, DMA direction, and file-descriptor state at the type level — preventing an entire class of resource-mismatch bugs at zero runtime cost.
+> **你将学到：** `PhantomData` 标记如何在类型级别编码寄存器宽度、DMA 方向和文件描述符状态——以零运行时成本防止整个资源不匹配 bug 类别。
 >
-> **Cross-references:** [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional types), [ch08](ch08-capability-mixins-compile-time-hardware-.md) (mixins), [ch10](ch10-putting-it-all-together-a-complete-diagn.md) (integration)
+> **交叉引用：** [ch05](ch05-protocol-state-machines-type-state-for-r.md)（类型状态），[ch06](ch06-dimensional-analysis-making-the-compiler.md)（量纲类型），[ch08](ch08-capability-mixins-compile-time-hardware-.md)（混合），[ch10](ch10-putting-it-all-together-a-complete-diagn.md)（集成）
 
-## The Problem: Mixing Up Resources
+## 问题：资源混淆
 
-Hardware resources look alike in code but aren't interchangeable:
+硬件资源在代码中看起来相似但不可互换：
 
-- A 32-bit register and a 16-bit register are both "registers"
-- A DMA buffer for read and a DMA buffer for write both look like `*mut u8`
-- An open file descriptor and a closed one are both `i32`
+- 32 位寄存器和 16 位寄存器都是"寄存器"
+- 用于读取的 DMA 缓冲区和用于写入的 DMA 缓冲区都看起来像 `*mut u8`
+- 打开的文件描述符和关闭的文件描述符都是 `i32`
 
-In C:
+在 C 中：
 
 ```c
-// C — all registers look the same
+// C — 所有寄存器看起来一样
 uint32_t read_reg32(volatile void *base, uint32_t offset);
 uint16_t read_reg16(volatile void *base, uint32_t offset);
 
-// Bug: reading a 16-bit register with the 32-bit function
-uint32_t status = read_reg32(pcie_bar, LINK_STATUS_REG);  // should be reg16!
+// Bug：用 32 位函数读取 16 位寄存器
+uint32_t status = read_reg32(pcie_bar, LINK_STATUS_REG);  // 应该是 reg16！
 ```
 
-## Phantom Type Parameters
+## 幽灵类型参数
 
-A **phantom type** is a type parameter that appears in the struct definition but
-not in any field. It exists purely to carry type-level information:
+**幽灵类型** 是一个出现在结构定义中但不在任何字段中的类型参数。它纯粹是为了携带类型级信息：
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Register width markers — zero-sized
+// 寄存器宽度标记——零大小
 pub struct Width8;
 pub struct Width16;
 pub struct Width32;
 pub struct Width64;
 
-/// A register handle parameterised by its width.
-/// PhantomData<W> costs zero bytes — it's a compile-time-only marker.
+/// 由其宽度参数化的寄存器句柄。
+/// PhantomData<W> 成本为零字节——它是仅编译时的标记。
 pub struct Register<W> {
     base: usize,
     offset: usize,
@@ -47,35 +46,35 @@ pub struct Register<W> {
 
 impl Register<Width8> {
     pub fn read(&self) -> u8 {
-        // ... read 1 byte from base + offset ...
+        // ... 从 base + offset 读取 1 字节 ...
         0 // stub
     }
     pub fn write(&self, _value: u8) {
-        // ... write 1 byte ...
+        // ... 写入 1 字节 ...
     }
 }
 
 impl Register<Width16> {
     pub fn read(&self) -> u16 {
-        // ... read 2 bytes from base + offset ...
+        // ... 从 base + offset 读取 2 字节 ...
         0 // stub
     }
     pub fn write(&self, _value: u16) {
-        // ... write 2 bytes ...
+        // ... 写入 2 字节 ...
     }
 }
 
 impl Register<Width32> {
     pub fn read(&self) -> u32 {
-        // ... read 4 bytes from base + offset ...
+        // ... 从 base + offset 读取 4 字节 ...
         0 // stub
     }
     pub fn write(&self, _value: u32) {
-        // ... write 4 bytes ...
+        // ... 写入 4 字节 ...
     }
 }
 
-/// PCIe config space register definitions.
+/// PCIe 配置空间寄存器定义。
 pub struct PcieConfig {
     base: usize,
 }
@@ -105,76 +104,73 @@ impl PcieConfig {
 fn pcie_example() {
     let cfg = PcieConfig { base: 0xFE00_0000 };
 
-    let vid: u16 = cfg.vendor_id().read();    // returns u16 ✅
-    let bar: u32 = cfg.bar0().read();         // returns u32 ✅
+    let vid: u16 = cfg.vendor_id().read();    // 返回 u16 ✅
+    let bar: u32 = cfg.bar0().read();         // 返回 u32 ✅
 
-    // Can't mix them up:
-    // let bad: u32 = cfg.vendor_id().read(); // ❌ ERROR: expected u16
-    // cfg.bar0().write(0u16);                // ❌ ERROR: expected u32
+    // 不能混淆它们：
+    // let bad: u32 = cfg.vendor_id().read(); // ❌ 错误：期望 u16
+    // cfg.bar0().write(0u16);                // ❌ 错误：期望 u32
 }
 ```
 
-## DMA Buffer Access Control
+## DMA 缓冲区访问控制
 
-DMA buffers have direction: some are for **device-to-host** (read), others for
-**host-to-device** (write). Using the wrong direction corrupts data or causes
-bus errors:
+DMA 缓冲区有方向：有些用于 **设备到主机**（读取），有些用于 **主机到设备**（写入）。使用错误的方向会破坏数据或导致总线错误：
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Direction markers
-pub struct ToDevice;     // host writes, device reads
-pub struct FromDevice;   // device writes, host reads
+// 方向标记
+pub struct ToDevice;     // 主机写入，设备读取
+pub struct FromDevice;   // 设备写入，主机读取
 
-/// A DMA buffer with direction enforcement.
+/// 带方向强制的 DMA 缓冲区。
 pub struct DmaBuffer<Dir> {
     ptr: *mut u8,
     len: usize,
-    dma_addr: u64,  // physical address for the device
+    dma_addr: u64,  // 设备的物理地址
     _dir: PhantomData<Dir>,
 }
 
 impl DmaBuffer<ToDevice> {
-    /// Fill the buffer with data to send to the device.
+    /// 用要发送到设备的数据填充缓冲区。
     pub fn write_data(&mut self, data: &[u8]) {
         assert!(data.len() <= self.len);
         unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), self.ptr, data.len()) }
     }
 
-    /// Get the DMA address for the device to read from.
+    /// 获取设备读取的 DMA 地址。
     pub fn device_addr(&self) -> u64 {
         self.dma_addr
     }
 }
 
 impl DmaBuffer<FromDevice> {
-    /// Read data that the device wrote into the buffer.
+    /// 读取设备写入缓冲区的数据。
     pub fn read_data(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.ptr, self.len) }
     }
 
-    /// Get the DMA address for the device to write to.
+    /// 获取设备写入的 DMA 地址。
     pub fn device_addr(&self) -> u64 {
         self.dma_addr
     }
 }
 
-// Can't write to a FromDevice buffer:
+// 不能写入 FromDevice 缓冲区：
 // fn oops(buf: &mut DmaBuffer<FromDevice>) {
-//     buf.write_data(&[1, 2, 3]);  // ❌ no method `write_data` on DmaBuffer<FromDevice>
+//     buf.write_data(&[1, 2, 3]);  // ❌ FromDevice 上没有方法 write_data
 // }
 
-// Can't read from a ToDevice buffer:
+// 不能从 ToDevice 缓冲区读取：
 // fn oops2(buf: &DmaBuffer<ToDevice>) {
-//     let data = buf.read_data();  // ❌ no method `read_data` on DmaBuffer<ToDevice>
+//     let data = buf.read_data();  // ❌ ToDevice 上没有方法 read_data
 // }
 ```
 
-## File Descriptor Ownership
+## 文件描述符所有权
 
-A common bug: using a file descriptor after it's been closed. Phantom types can
-track open/closed state:
+一个常见 bug：在文件描述符关闭后使用它。幽灵类型可以跟踪打开/关闭状态：
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -182,7 +178,7 @@ use std::marker::PhantomData;
 pub struct Open;
 pub struct Closed;
 
-/// A file descriptor with state tracking.
+/// 带状态跟踪的文件描述符。
 pub struct Fd<State> {
     raw: i32,
     _state: PhantomData<State>,
@@ -190,31 +186,31 @@ pub struct Fd<State> {
 
 impl Fd<Open> {
     pub fn open(path: &str) -> Result<Self, String> {
-        // ... open the file ...
+        // ... 打开文件 ...
         Ok(Fd { raw: 3, _state: PhantomData }) // stub
     }
 
     pub fn read(&self, buf: &mut [u8]) -> Result<usize, String> {
-        // ... read from fd ...
+        // ... 从 fd 读取 ...
         Ok(0) // stub
     }
 
     pub fn write(&self, data: &[u8]) -> Result<usize, String> {
-        // ... write to fd ...
+        // ... 写入 fd ...
         Ok(data.len()) // stub
     }
 
-    /// Close the fd — returns a Closed handle.
-    /// The Open handle is consumed, preventing use-after-close.
+    /// 关闭 fd——返回一个 Closed 句柄。
+    /// Open 句柄被消耗，防止关闭后使用。
     pub fn close(self) -> Fd<Closed> {
-        // ... close the fd ...
+        // ... 关闭 fd ...
         Fd { raw: self.raw, _state: PhantomData }
     }
 }
 
 impl Fd<Closed> {
-    // No read() or write() methods — they don't exist on Fd<Closed>.
-    // This makes use-after-close a compile error.
+    // 没有 read() 或 write() 方法——它们在 Fd<Closed> 上不存在。
+    // 这使得关闭后使用成为编译错误。
 
     pub fn raw_fd(&self) -> i32 {
         self.raw
@@ -228,16 +224,16 @@ fn fd_example() -> Result<(), String> {
 
     let closed = fd.close();
 
-    // closed.read(&mut buf)?;  // ❌ no method `read` on Fd<Closed>
-    // closed.write(&[1])?;     // ❌ no method `write` on Fd<Closed>
+    // closed.read(&mut buf)?;  // ❌ Fd<Closed> 上没有方法 read
+    // closed.write(&[1])?;     // ❌ Fd<Closed> 上没有方法 write
 
     Ok(())
 }
 ```
 
-## Combining Phantom Types with Earlier Patterns
+## 将幽灵类型与早期模式结合
 
-Phantom types compose with everything we've seen:
+幽灵类型与我们见过的所有内容组合：
 
 ```rust,ignore
 # use std::marker::PhantomData;
@@ -249,43 +245,43 @@ Phantom types compose with everything we've seen:
 # #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 # pub struct Celsius(pub f64);
 
-/// Combine phantom types (register width) with dimensional types (Celsius).
+/// 结合幽灵类型（寄存器宽度）和量纲类型（Celsius）。
 fn read_temp_sensor(reg: &Register<Width16>) -> Celsius {
-    let raw = reg.read();  // guaranteed u16 by phantom type
-    Celsius(raw as f64 * 0.0625)  // guaranteed Celsius by return type
+    let raw = reg.read();  // 幽灵类型保证是 u16
+    Celsius(raw as f64 * 0.0625)  // 返回类型保证是 Celsius
 }
 
-// The compiler enforces:
-// 1. The register is 16-bit (phantom type)
-// 2. The result is Celsius (newtype)
-// Both at zero runtime cost.
+// 编译器强制执行：
+// 1. 寄存器是 16 位（幽灵类型）
+// 2. 结果是摄氏度（newtype）
+// 两者都零运行时成本。
 ```
 
-### When to Use Phantom Types
+### 何时使用幽灵类型
 
-| Scenario | Use phantom parameter? |
+| 场景 | 使用幽灵参数？ |
 |----------|:------:|
-| Register width encoding | ✅ Always — prevents width mismatch |
-| DMA buffer direction | ✅ Always — prevents data corruption |
-| File descriptor state | ✅ Always — prevents use-after-close |
-| Memory region permissions (R/W/X) | ✅ Always — enforces access control |
-| Generic container (Vec, HashMap) | ❌ No — use concrete type parameters |
-| Runtime-variable attributes | ❌ No — phantom types are compile-time only |
+| 寄存器宽度编码 | ✅ 始终——防止宽度不匹配 |
+| DMA 缓冲区方向 | ✅ 始终——防止数据破坏 |
+| 文件描述符状态 | ✅ 始终——防止关闭后使用 |
+| 内存区域权限（读/写/执行） | ✅ 始终——强制访问控制 |
+| 通用容器（Vec、HashMap） | ❌ 否——使用具体类型参数 |
+| 运行时可变属性 | ❌ 否——幽灵类型仅用于编译时 |
 
-## Phantom Type Resource Matrix
+## 幽灵类型资源矩阵
 
 ```mermaid
 flowchart TD
-    subgraph "Width Markers"
-        W8["Width8"] 
+    subgraph "宽度标记"
+        W8["Width8"]
         W16["Width16"]
         W32["Width32"]
     end
-    subgraph "Direction Markers"
+    subgraph "方向标记"
         RD["Read"]
         WR["Write"]
     end
-    subgraph "Typed Resources"
+    subgraph "类型化资源"
         R1["Register<Width16>"]
         R2["DmaBuffer<Read>"]
         R3["DmaBuffer<Write>"]
@@ -293,7 +289,7 @@ flowchart TD
     W16 --> R1
     RD --> R2
     WR --> R3
-    R2 -.->|"write attempt"| ERR["❌ Compile Error"]
+    R2 -.->|"写入尝试"| ERR["❌ 编译错误"]
     style W8 fill:#e1f5fe,color:#000
     style W16 fill:#e1f5fe,color:#000
     style W32 fill:#e1f5fe,color:#000
@@ -305,16 +301,16 @@ flowchart TD
     style ERR fill:#ffcdd2,color:#000
 ```
 
-## Exercise: Memory Region Permissions
+## 练习：内存区域权限
 
-Design phantom types for memory regions with read, write, and execute permissions:
-- `MemRegion<ReadOnly>` has `fn read(&self, offset: usize) -> u8`
-- `MemRegion<ReadWrite>` has both `read` and `write`
-- `MemRegion<Executable>` has `read` and `fn execute(&self)`
-- Writing to `ReadOnly` or executing `ReadWrite` should not compile.
+为具有读、写和执行权限的内存区域设计幽灵类型：
+- `MemRegion<ReadOnly>` 有 `fn read(&self, offset: usize) -> u8`
+- `MemRegion<ReadWrite>` 有 `read` 和 `write`
+- `MemRegion<Executable>` 有 `read` 和 `fn execute(&self)`
+- 写入 `ReadOnly` 或执行 `ReadWrite` 不应编译。
 
 <details>
-<summary>Solution</summary>
+<summary>解答</summary>
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -329,7 +325,7 @@ pub struct MemRegion<Perm> {
     _perm: PhantomData<Perm>,
 }
 
-// Read available on all permission types
+// 所有权限类型都可用读取
 impl<P> MemRegion<P> {
     pub fn read(&self, offset: usize) -> u8 {
         assert!(offset < self.len);
@@ -346,23 +342,23 @@ impl MemRegion<ReadWrite> {
 
 impl MemRegion<Executable> {
     pub fn execute(&self) {
-        // Jump to base address (conceptual)
+        // 跳转到基地址（概念性）
     }
 }
 
-// ❌ region_ro.write(0, 0xFF);  // Compile error: no method `write`
-// ❌ region_rw.execute();       // Compile error: no method `execute`
+// ❌ region_ro.write(0, 0xFF);  // 编译错误：没有方法 write
+// ❌ region_rw.execute();       // 编译错误：没有方法 execute
 ```
 
 </details>
 
-## Key Takeaways
+## 关键要点
 
-1. **PhantomData carries type-level information at zero size** — the marker exists only for the compiler.
-2. **Register width mismatches become compile errors** — `Register<Width16>` returns `u16`, not `u32`.
-3. **DMA direction is enforced structurally** — `DmaBuffer<Read>` has no `write()` method.
-4. **Combine with dimensional types (ch06)** — `Register<Width16>` can return `Celsius` via the parse step.
-5. **Phantom types are compile-time only** — they don't work for runtime-variable attributes; use enums for those.
+1. **PhantomData 以零大小携带类型级信息** — 标记只存在于编译器中。
+2. **寄存器宽度不匹配成为编译错误** — `Register<Width16>` 返回 `u16`，不是 `u32`。
+3. **DMA 方向被结构性强制执行** — `DmaBuffer<Read>` 没有 `write()` 方法。
+4. **与量纲类型结合（ch06）** — `Register<Width16>` 可以通过解析步骤返回 `Celsius`。
+5. **幽灵类型仅用于编译时** — 它们不适用于运行时可变属性；为那些使用枚举。
 
 ---
 

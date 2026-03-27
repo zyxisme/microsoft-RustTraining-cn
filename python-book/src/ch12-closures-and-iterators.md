@@ -1,52 +1,52 @@
-## Rust Closures vs Python Lambdas
+## Rust 闭包 vs Python Lambda
 
-> **What you'll learn:** Multi-line closures (not just one-expression lambdas), `Fn`/`FnMut`/`FnOnce` capture semantics,
-> iterator chains vs list comprehensions, `map`/`filter`/`fold`, and `macro_rules!` basics.
+> **你将学到：** 多行闭包（不仅仅是一表达式 lambda），`Fn`/`FnMut`/`FnOnce` 捕获语义，
+> 迭代器链 vs 列表推导式，`map`/`filter`/`fold`，以及 `macro_rules!` 基础。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-### Python Closures and Lambdas
+### Python 闭包和 Lambda
 ```python
-# Python — lambdas are one-expression anonymous functions
+# Python — lambdas 是单表达式匿名函数
 double = lambda x: x * 2
 result = double(5)  # 10
 
-# Full closures capture variables from enclosing scope:
+# 完整闭包从封闭作用域捕获变量：
 def make_adder(n):
     def adder(x):
-        return x + n    # Captures `n` from outer scope
+        return x + n    # 从外部作用域捕获 `n`
     return adder
 
 add_5 = make_adder(5)
 print(add_5(10))  # 15
 
-# Higher-order functions:
+# 高阶函数：
 numbers = [1, 2, 3, 4, 5]
 doubled = list(map(lambda x: x * 2, numbers))
 evens = list(filter(lambda x: x % 2 == 0, numbers))
 ```
 
-### Rust Closures
+### Rust 闭包
 ```rust
-// Rust — closures use |args| body syntax
+// Rust — 闭包使用 |args| body 语法
 let double = |x: i32| x * 2;
 let result = double(5);  // 10
 
-// Closures capture variables from enclosing scope:
+// 闭包从封闭作用域捕获变量：
 fn make_adder(n: i32) -> impl Fn(i32) -> i32 {
-    move |x| x + n    // `move` transfers ownership of `n` into the closure
+    move |x| x + n    // `move` 将 `n` 的所有权转移到闭包中
 }
 
 let add_5 = make_adder(5);
 println!("{}", add_5(10));  // 15
 
-// Higher-order functions with iterators:
+// 使用迭代器的高阶函数：
 let numbers = vec![1, 2, 3, 4, 5];
 let doubled: Vec<i32> = numbers.iter().map(|x| x * 2).collect();
 let evens: Vec<i32> = numbers.iter().filter(|&&x| x % 2 == 0).copied().collect();
 ```
 
-### Closure Syntax Comparison
+### 闭包语法对比
 ```text
 Python:                              Rust:
 ─────────                            ─────
@@ -61,71 +61,71 @@ def f(x):                            |x| {
                                       }
 ```
 
-### Closure Capture — How Rust Differs
+### 闭包捕获 — Rust 的不同之处
 ```python
-# Python — closures capture by reference (late binding!)
+# Python — 闭包通过引用捕获（延迟绑定！）
 funcs = [lambda: i for i in range(3)]
-print([f() for f in funcs])  # [2, 2, 2] — surprise! All captured the same `i`
+print([f() for f in funcs])  # [2, 2, 2] — 出乎意料！所有闭包捕获了同一个 `i`
 
-# Fix with default arg trick:
+# 用默认参数技巧修复：
 funcs = [lambda i=i: i for i in range(3)]
 print([f() for f in funcs])  # [0, 1, 2]
 ```
 
 ```rust
-// Rust — closures capture correctly (no late-binding gotcha)
+// Rust — 闭包正确捕获（没有延迟绑定的坑）
 let funcs: Vec<Box<dyn Fn() -> i32>> = (0..3)
     .map(|i| Box::new(move || i) as Box<dyn Fn() -> i32>)
     .collect();
 
 let results: Vec<i32> = funcs.iter().map(|f| f()).collect();
-println!("{:?}", results);  // [0, 1, 2] — correct!
+println!("{:?}", results);  // [0, 1, 2] — 正确！
 
-// `move` captures a COPY of `i` for each closure — no late-binding surprise.
+// `move` 为每个闭包复制一份 `i` — 没有延迟绑定的意外。
 ```
 
-### Three Closure Traits
+### 三种闭包 Trait
 ```rust
-// Rust closures implement one or more of these traits:
+// Rust 闭包实现以下一个或多个 trait：
 
-// Fn — can be called multiple times, doesn't mutate captures (most common)
+// Fn — 可以多次调用，不改变捕获的变量（最常见）
 fn apply(f: impl Fn(i32) -> i32, x: i32) -> i32 { f(x) }
 
-// FnMut — can be called multiple times, MAY mutate captures
+// FnMut — 可以多次调用，可能改变捕获的变量
 fn apply_mut(mut f: impl FnMut(i32) -> i32, x: i32) -> i32 { f(x) }
 
-// FnOnce — can only be called ONCE (consumes captures)
+// FnOnce — 只能调用一次（消耗捕获的变量）
 fn apply_once(f: impl FnOnce() -> String) -> String { f() }
 
-// Python has no equivalent — closures are always Fn-like.
-// In Rust, the compiler automatically determines which trait to use.
+// Python 没有等价物 — 闭包总是 Fn 风格的。
+// 在 Rust 中，编译器自动决定使用哪个 trait。
 ```
 
 ***
 
-## Iterators vs Generators
+## 迭代器 vs 生成器
 
-### Python Generators
+### Python 生成器
 ```python
-# Python — generators with yield
+# Python — 使用 yield 的生成器
 def fibonacci():
     a, b = 0, 1
     while True:
         yield a
         a, b = b, a + b
 
-# Lazy — values computed on demand
+# 惰性求值 — 值按需计算
 fib = fibonacci()
 first_10 = [next(fib) for _ in range(10)]
 
-# Generator expressions — like lazy list comprehensions
-squares = (x ** 2 for x in range(1000000))  # No memory allocation
+# 生成器表达式 — 类似于惰性列表推导式
+squares = (x ** 2 for x in range(1000000))  # 不分配内存
 first_5 = [next(squares) for _ in range(5)]
 ```
 
-### Rust Iterators
+### Rust 迭代器
 ```rust
-// Rust — Iterator trait (similar concept, different syntax)
+// Rust — Iterator trait（类似概念，不同语法）
 struct Fibonacci {
     a: u64,
     b: u64,
@@ -148,22 +148,22 @@ impl Iterator for Fibonacci {
     }
 }
 
-// Lazy — values computed on demand (just like Python generators)
+// 惰性求值 — 值按需计算（与 Python 生成器相同）
 let first_10: Vec<u64> = Fibonacci::new().take(10).collect();
 
-// Iterator chains — like generator expressions
+// 迭代器链 — 类似于生成器表达式
 let squares: Vec<u64> = (0..1_000_000u64).map(|x| x * x).take(5).collect();
 ```
 
 ***
 
-## Comprehensions vs Iterator Chains
+## 推导式 vs 迭代器链
 
-This section maps Python's comprehension syntax to Rust's iterator chains.
+本节将 Python 的推导式语法映射到 Rust 的迭代器链。
 
-### List Comprehension → map/filter/collect
+### 列表推导式 → map/filter/collect
 ```python
-# Python comprehensions:
+# Python 推导式：
 squares = [x ** 2 for x in range(10)]
 evens = [x for x in range(20) if x % 2 == 0]
 names = [user.name for user in users if user.active]
@@ -173,18 +173,18 @@ flat = [item for sublist in nested for item in sublist]
 
 ```mermaid
 flowchart LR
-    A["Source\n[1,2,3,4,5]"] -->|.iter\(\)| B["Iterator"]
-    B -->|.filter\(\|x\| x%2==0\)| C["[2, 4]"]
-    C -->|.map\(\|x\| x*x\)| D["[4, 16]"]
-    D -->|.collect\(\)| E["Vec&lt;i32&gt;\n[4, 16]"]
+    A["Source\n[1,2,3,4,5]"] -->|.iter()| B["Iterator"]
+    B -->|.filter(|x| x%2==0)| C["[2, 4]"]
+    C -->|.map(|x| x*x)| D["[4, 16]"]
+    D -->|.collect()| E["Vec<i32>\n[4, 16]"]
     style A fill:#ffeeba
     style E fill:#d4edda
 ```
 
-> **Key insight**: Rust iterators are lazy — nothing happens until `.collect()`. Python's generators work similarly, but list comprehensions evaluate eagerly.
+> **关键洞察**：Rust 迭代器是惰性的 — 在调用 `.collect()` 之前什么都不发生。Python 的生成器工作方式类似，但列表推导式是立即求值的。
 
 ```rust
-// Rust iterator chains:
+// Rust 迭代器链：
 let squares: Vec<i32> = (0..10).map(|x| x * x).collect();
 let evens: Vec<i32> = (0..20).filter(|x| x % 2 == 0).collect();
 let names: Vec<&str> = users.iter()
@@ -199,7 +199,7 @@ let flat: Vec<i32> = nested.iter()
     .collect();
 ```
 
-### Dict Comprehension → collect into HashMap
+### 字典推导式 → collect 成 HashMap
 ```python
 # Python
 word_lengths = {word: len(word) for word in words}
@@ -216,7 +216,7 @@ let inverted: HashMap<&V, &K> = mapping.iter()
     .collect();
 ```
 
-### Set Comprehension → collect into HashSet
+### 集合推导式 → collect 成 HashSet
 ```python
 # Python
 unique_lengths = {len(word) for word in words}
@@ -229,60 +229,59 @@ let unique_lengths: HashSet<usize> = words.iter()
     .collect();
 ```
 
-### Common Iterator Methods
+### 常用迭代器方法
 
-| Python | Rust | Notes |
-|--------|------|-------|
-| `map(f, iter)` | `.map(f)` | Transform each element |
-| `filter(f, iter)` | `.filter(f)` | Keep matching elements |
-| `sum(iter)` | `.sum()` | Sum all elements |
-| `min(iter)` / `max(iter)` | `.min()` / `.max()` | Returns `Option` |
-| `any(f(x) for x in iter)` | `.any(f)` | True if any match |
-| `all(f(x) for x in iter)` | `.all(f)` | True if all match |
-| `enumerate(iter)` | `.enumerate()` | Index + value |
-| `zip(a, b)` | `a.zip(b)` | Pair elements |
-| `len(list)` | `.count()` (consumes!) or `.len()` | Count elements |
-| `list(reversed(x))` | `.rev()` | Reverse iteration |
-| `itertools.chain(a, b)` | `a.chain(b)` | Concatenate iterators |
-| `next(iter)` | `.next()` | Get next element |
-| `next(iter, default)` | `.next().unwrap_or(default)` | With default |
-| `list(iter)` | `.collect::<Vec<_>>()` | Materialize into collection |
-| `sorted(iter)` | Collect, then `.sort()` | No lazy sorted iterator |
-| `functools.reduce(f, iter)` | `.fold(init, f)` or `.reduce(f)` | Accumulate |
+| Python | Rust | 说明 |
+|--------|------|------|
+| `map(f, iter)` | `.map(f)` | 转换每个元素 |
+| `filter(f, iter)` | `.filter(f)` | 保留匹配的元素 |
+| `sum(iter)` | `.sum()` | 求和所有元素 |
+| `min(iter)` / `max(iter)` | `.min()` / `.max()` | 返回 `Option` |
+| `any(f(x) for x in iter)` | `.any(f)` | 任一匹配则为真 |
+| `all(f(x) for x in iter)` | `.all(f)` | 全部匹配则为真 |
+| `enumerate(iter)` | `.enumerate()` | 索引 + 值 |
+| `zip(a, b)` | `a.zip(b)` | 配对元素 |
+| `len(list)` | `.count()` (消耗!) 或 `.len()` | 计数元素 |
+| `list(reversed(x))` | `.rev()` | 反向迭代 |
+| `itertools.chain(a, b)` | `a.chain(b)` | 连接迭代器 |
+| `next(iter)` | `.next()` | 获取下一个元素 |
+| `next(iter, default)` | `.next().unwrap_or(default)` | 带默认值 |
+| `list(iter)` | `.collect::<Vec<_>>()` | 物化为集合 |
+| `sorted(iter)` | 收集后再 `.sort()` | 没有惰性排序迭代器 |
+| `functools.reduce(f, iter)` | `.fold(init, f)` 或 `.reduce(f)` | 累积 |
 
-### Key Differences
+### 关键区别
 ```text
-Python iterators:                     Rust iterators:
-─────────────────                     ──────────────
-- Lazy by default (generators)       - Lazy by default (all iterator chains)
-- yield creates generators            - impl Iterator { fn next() }
-- StopIteration to end               - None to end
-- Can be consumed once               - Can be consumed once
-- No type safety                      - Fully type-safe
-- Slightly slower (interpreter)       - Zero-cost (compiled away)
+Python 迭代器：                     Rust 迭代器：
+─────────────────                  ──────────────
+- 默认惰性（生成器）                 - 默认惰性（所有迭代器链）
+- yield 创建生成器                  - impl Iterator { fn next() }
+- StopIteration 结束               - None 结束
+- 只能消耗一次                      - 只能消耗一次
+- 无类型安全                        - 完全类型安全
+- 稍慢（解释器）                     - 零成本（编译时消除）
 ```
 
 ***
 
-
 <!-- ch12a: Macros -->
-## Why Macros Exist in Rust
 
-Python has no macro system — it uses decorators, metaclasses, and runtime
-introspection for metaprogramming. Rust uses macros for compile-time code generation.
+## 为什么 Rust 中存在宏
 
-### Python Metaprogramming vs Rust Macros
+Python 没有宏系统 — 它使用装饰器、元类和运行时内省进行元编程。Rust 使用宏进行编译时代码生成。
+
+### Python 元编程 vs Rust 宏
 ```python
-# Python — decorators and metaclasses for metaprogramming
+# Python — 用于元编程的装饰器和元类
 from dataclasses import dataclass
 from functools import wraps
 
-@dataclass              # Generates __init__, __repr__, __eq__ at import time
+@dataclass              # 在导入时生成 __init__、__repr__、__eq__
 class Point:
     x: float
     y: float
 
-# Custom decorator
+# 自定义装饰器
 def log_calls(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -296,14 +295,14 @@ def process(data):
 ```
 
 ```rust
-// Rust — derive macros and declarative macros for code generation
-#[derive(Debug, Clone, PartialEq)]  // Generates Debug, Clone, PartialEq impls at COMPILE time
+// Rust — 用于代码生成的 derive 宏和声明式宏
+#[derive(Debug, Clone, PartialEq)]  // 在编译时生成 Debug、Clone、PartialEq impl
 struct Point {
     x: f64,
     y: f64,
 }
 
-// Declarative macro (like a template)
+// 声明式宏（类似于模板）
 macro_rules! log_call {
     ($func_name:expr, $body:expr) => {
         println!("Calling {}", $func_name);
@@ -316,30 +315,30 @@ fn process(data: &str) -> String {
 }
 ```
 
-### Common Built-in Macros
+### 常用内置宏
 ```rust
-// These macros are used everywhere in Rust:
+// 这些宏在 Rust 中到处使用：
 
-println!("Hello, {}!", name);           // Print with formatting
-format!("Value: {}", x);               // Create formatted String
-vec![1, 2, 3];                          // Create a Vec
-assert_eq!(2 + 2, 4);                  // Test assertion
-assert!(value > 0, "must be positive"); // Boolean assertion
-dbg!(expression);                       // Debug print: prints expression AND value
-todo!();                                // Placeholder — compiles but panics if reached
-unimplemented!();                       // Mark code as unimplemented
-panic!("something went wrong");         // Crash with message (like raise RuntimeError)
+println!("Hello, {}!", name);           // 带格式化的打印
+format!("Value: {}", x);               // 创建格式化的 String
+vec![1, 2, 3];                          // 创建 Vec
+assert_eq!(2 + 2, 4);                  // 测试断言
+assert!(value > 0, "must be positive"); // 布尔断言
+dbg!(expression);                       // 调试打印：打印表达式和值
+todo!();                                // 占位符 — 编译通过但到达时 panic
+unimplemented!();                       // 标记代码未实现
+panic!("something went wrong");         // 带消息的崩溃（类似于 raise RuntimeError）
 
-// Why are these macros instead of functions?
-// - println! accepts variable arguments (Rust functions can't)
-// - vec! generates code for any type and size
-// - assert_eq! knows the SOURCE CODE of what you compared
-// - dbg! knows the FILE NAME and LINE NUMBER
+// 为什么这些是宏而不是函数？
+// - println! 接受可变参数（Rust 函数不能）
+// - vec! 为任何类型和大小生成代码
+// - assert_eq! 知道你比较的源代码
+// - dbg! 知道文件名和行号
 ```
 
-## Writing a Simple Macro with macro_rules!
+## 使用 macro_rules! 编写简单宏
 ```rust
-// Python dict() equivalent
+// Python dict() 等价物
 // Python: d = dict(a=1, b=2)
 // Rust:   let d = hashmap!{ "a" => 1, "b" => 2 };
 
@@ -360,9 +359,9 @@ let scores = hashmap! {
 };
 ```
 
-## Derive Macros — Auto-Implementing Traits
+## Derive 宏 — 自动实现 Trait
 ```rust
-// #[derive(...)] is the Rust equivalent of Python's @dataclass decorator
+// #[derive(...)] 是 Rust 中 Python 的 @dataclass 装饰器的等价物
 
 // Python:
 // @dataclass(frozen=True, order=True)
@@ -377,42 +376,42 @@ struct Student {
     grade: i32,
 }
 
-// Common derive macros:
-// Debug         → {:?} formatting (like __repr__)
-// Clone         → .clone() deep copy
-// Copy          → implicit copy (only for simple types)
-// PartialEq, Eq → == comparison (like __eq__)
-// PartialOrd, Ord → <, >, sorting (like __lt__ etc.)
-// Hash          → usable as HashMap key (like __hash__)
-// Default       → MyType::default() (like __init__ with no args)
+// 常用的 derive 宏：
+// Debug         → {:?} 格式化（类似于 __repr__）
+// Clone         → .clone() 深拷贝
+// Copy          → 隐式拷贝（仅用于简单类型）
+// PartialEq, Eq → == 比较（类似于 __eq__）
+// PartialOrd, Ord → <, >, 排序（类似于 __lt__ 等）
+// Hash          → 可用作 HashMap 键（类似于 __hash__）
+// Default       → MyType::default()（类似于无参数的 __init__）
 
-// Crate-provided derive macros:
-// Serialize, Deserialize (serde) → JSON/YAML/TOML serialization
-//                                  (like Python's json.dumps/loads but type-safe)
+// crate 提供的 derive 宏：
+// Serialize, Deserialize (serde) → JSON/YAML/TOML 序列化
+//                                  （类似于 Python 的 json.dumps/loads 但类型安全）
 ```
 
-### Python Decorator vs Rust Derive
+### Python 装饰器 vs Rust Derive
 
-| Python Decorator | Rust Derive | Purpose |
-|-----------------|-------------|---------|
-| `@dataclass` | `#[derive(Debug, Clone, PartialEq)]` | Data class |
-| `@dataclass(frozen=True)` | Immutable by default | Immutability |
-| `@dataclass(order=True)` | `#[derive(Ord, PartialOrd)]` | Comparison/sorting |
-| `@total_ordering` | `#[derive(PartialOrd, Ord)]` | Full ordering |
-| JSON `json.dumps(obj.__dict__)` | `#[derive(Serialize)]` | Serialization |
-| JSON `MyClass(**json.loads(s))` | `#[derive(Deserialize)]` | Deserialization |
+| Python 装饰器 | Rust Derive | 用途 |
+|----------------|-------------|------|
+| `@dataclass` | `#[derive(Debug, Clone, PartialEq)]` | 数据类 |
+| `@dataclass(frozen=True)` | 默认不可变 | 不可变性 |
+| `@dataclass(order=True)` | `#[derive(Ord, PartialOrd)]` | 比较/排序 |
+| `@total_ordering` | `#[derive(PartialOrd, Ord)]` | 完全排序 |
+| JSON `json.dumps(obj.__dict__)` | `#[derive(Serialize)]` | 序列化 |
+| JSON `MyClass(**json.loads(s))` | `#[derive(Deserialize)]` | 反序列化 |
 
 ---
 
-## Exercises
+## 练习
 
 <details>
-<summary><strong>🏋️ Exercise: Derive and Custom Debug</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：Derive 和自定义 Debug</strong>（点击展开）</summary>
 
-**Challenge**: Create a `User` struct with fields `name: String`, `email: String`, and `password_hash: String`. Derive `Clone` and `PartialEq`, but implement `Debug` manually so it prints the name and email but redacts the password (shows `"***"` instead).
+**挑战**：创建一个 `User` 结构体，包含字段 `name: String`、`email: String` 和 `password_hash: String`。派生 `Clone` 和 `PartialEq`，但手动实现 `Debug` 以便打印姓名和电子邮件但隐藏密码（显示 `"***"` 而不是实际值）。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::fmt;
@@ -441,14 +440,15 @@ fn main() {
         password_hash: "a1b2c3d4e5f6".into(),
     };
     println!("{user:?}");
-    // Output: User { name: "Alice", email: "alice@example.com", password_hash: "***" }
+    // 输出：User { name: "Alice", email: "alice@example.com", password_hash: "***" }
 }
 ```
 
-**Key takeaway**: Unlike Python's `__repr__`, Rust lets you derive `Debug` for free — but you can override it for sensitive fields. This is safer than Python where `print(user)` might accidentally leak secrets.
+**关键要点**：与 Python 的 `__repr__` 不同，Rust 可以免费派生 `Debug` — 但你可以为敏感字段覆盖它。这比 Python 更安全，因为在 Python 中 `print(user)` 可能意外泄露敏感信息。
 
 </details>
 </details>
 
 ***
+
 

@@ -1,11 +1,11 @@
-## Exercises
+## 练习
 
-### Exercise 1: Type-Safe State Machine ★★ (~30 min)
+### 练习 1：类型安全状态机 ★★（约 30 分钟）
 
-Build a traffic light state machine using the type-state pattern. The light must transition `Red → Green → Yellow → Red` and no other order should be possible.
+使用类型状态模式构建交通灯状态机。灯必须按 `红 → 绿 → 黄 → 红` 的顺序转换，其他顺序都是不可能的。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -50,27 +50,27 @@ fn main() {
     let light = light.caution();     // Yellow
     let light = light.stop();        // Red
 
-    // light.caution(); // ❌ Compile error: no method `caution` on Red
-    // TrafficLight::new().stop(); // ❌ Compile error: no method `stop` on Red
+    // light.caution(); // ❌ 编译错误：Red 上没有 `caution` 方法
+    // TrafficLight::new().stop(); // ❌ 编译错误：Red 上没有 `stop` 方法
 }
 ```
 
-**Key takeaway**: Invalid transitions are compile errors, not runtime panics.
+**关键要点**：无效的转换是编译错误，不是运行时 panic。
 
 </details>
 
 ---
 
-### Exercise 2: Unit-of-Measure with PhantomData ★★ (~30 min)
+### 练习 2：PhantomData 单位量纲 ★★（约 30 分钟）
 
-Extend the unit-of-measure pattern from Ch4 to support:
-- `Meters`, `Seconds`, `Kilograms`
-- Addition of same units
-- Multiplication: `Meters * Meters = SquareMeters`
-- Division: `Meters / Seconds = MetersPerSecond`
+扩展第 4 章的单位量纲模式以支持：
+- `Meters`、`Seconds`、`Kilograms`
+- 相同单位的加法
+- 乘法：`Meters * Meters = SquareMeters`
+- 除法：`Meters / Seconds = MetersPerSecond`
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -127,10 +127,10 @@ fn main() {
     let speed = dist / time;
     println!("Speed: {:.2} m/s", speed.value);
 
-    let sum = width + height; // Same unit ✅
+    let sum = width + height; // 相同单位 ✅
     println!("Sum: {:.1} m", sum.value);
 
-    // let bad = width + time; // ❌ Compile error: can't add Meters + Seconds
+    // let bad = width + time; // ❌ 编译错误：不能 Meters + Seconds
 }
 ```
 
@@ -138,15 +138,15 @@ fn main() {
 
 ---
 
-### Exercise 3: Channel-Based Worker Pool ★★★ (~45 min)
+### 练习 3：基于通道的工作池 ★★★（约 45 分钟）
 
-Build a worker pool using channels where:
-- A dispatcher sends `Job` structs through a channel
-- N workers consume jobs and send results back
-- Use `crossbeam-channel` (or `std::sync::mpsc` if crossbeam is unavailable)
+使用通道构建工作池，其中：
+- 调度器通过通道发送 `Job` 结构
+- N 个 worker 消费 jobs 并发回结果
+- 使用 `crossbeam-channel`（如果不可用则用 `std::sync::mpsc`）
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::sync::mpsc;
@@ -167,20 +167,20 @@ fn worker_pool(jobs: Vec<Job>, num_workers: usize) -> Vec<JobResult> {
     let (job_tx, job_rx) = mpsc::channel::<Job>();
     let (result_tx, result_rx) = mpsc::channel::<JobResult>();
 
-    // Wrap receiver in Arc<Mutex> for sharing among workers
+    // 用 Arc<Mutex> 包装 receiver 以在 worker 间共享
     let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
 
-    // Spawn workers
+    // 生成 worker
     let mut handles = Vec::new();
     for worker_id in 0..num_workers {
         let job_rx = job_rx.clone();
         let result_tx = result_tx.clone();
         handles.push(thread::spawn(move || {
             loop {
-                // Lock, receive, unlock — short critical section
+                // 加锁、接收、解锁 — 短临界区
                 let job = {
                     let rx = job_rx.lock().unwrap();
-                    rx.recv() // Blocks until a job or channel closes
+                    rx.recv() // 阻塞直到有 job 或通道关闭
                 };
                 match job {
                     Ok(job) => {
@@ -191,21 +191,21 @@ fn worker_pool(jobs: Vec<Job>, num_workers: usize) -> Vec<JobResult> {
                             worker_id,
                         }).unwrap();
                     }
-                    Err(_) => break, // Channel closed — exit
+                    Err(_) => break, // 通道关闭 — 退出
                 }
             }
         }));
     }
-    drop(result_tx); // Drop our copy so result channel closes when workers finish
+    drop(result_tx); // 丢弃我们的副本，这样 worker 完成后 result 通道关闭
 
-    // Dispatch jobs
+    // 调度 jobs
     let num_jobs = jobs.len();
     for job in jobs {
         job_tx.send(job).unwrap();
     }
-    drop(job_tx); // Close the job channel — workers will exit after draining
+    drop(job_tx); // 关闭 job 通道 — worker 排空后将退出
 
-    // Collect results
+    // 收集结果
     let mut results = Vec::new();
     for result in result_rx {
         results.push(result);
@@ -233,12 +233,12 @@ fn main() {
 
 ---
 
-### Exercise 4: Higher-Order Combinator Pipeline ★★ (~25 min)
+### 练习 4：高阶组合器管道 ★★（约 25 分钟）
 
-Create a `Pipeline` struct that chains transformations. It should support `.pipe(f)` to add a transformation and `.execute(input)` to run the full chain.
+创建一个 `Pipeline` 结构来链接转换。它应该支持 `.pipe(f)` 添加转换，`.execute(input)` 运行完整链。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 struct Pipeline<T> {
@@ -269,7 +269,7 @@ fn main() {
 
     println!("{result}"); // >>> HELLO WORLD <<<
 
-    // Numeric pipeline:
+    // 数字管道：
     let result = Pipeline::new()
         .pipe(|x: i32| x * 2)
         .pipe(|x| x + 10)
@@ -280,18 +280,18 @@ fn main() {
 }
 ```
 
-**Bonus**: Generic pipeline that changes type between stages would use a different design — each `.pipe()` returns a `Pipeline` with a different output type (this requires more advanced generic plumbing).
+**奖励**：在阶段之间改变类型的泛型管道会使用不同的设计 — 每个 `.pipe()` 返回不同输出类型的 `Pipeline`（这需要更高级的泛型机制）。
 
 </details>
 
 ---
 
-### Exercise 5: Error Hierarchy with thiserror ★★ (~30 min)
+### 练习 5：使用 thiserror 的错误层次结构 ★★（约 30 分钟）
 
-Design an error type hierarchy for a file-processing application that can fail during I/O, parsing (JSON and CSV), and validation. Use `thiserror` and demonstrate `?` propagation.
+为文件处理应用程序设计错误类型层次结构，该程序可能在 I/O、解析（JSON 和 CSV）和验证期间失败。使用 `thiserror` 并演示 `?` 传播。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust,ignore
 use thiserror::Error;
@@ -312,7 +312,7 @@ pub enum AppError {
 }
 
 fn read_file(path: &str) -> Result<String, AppError> {
-    Ok(std::fs::read_to_string(path)?) // io::Error → AppError::Io via #[from]
+    Ok(std::fs::read_to_string(path)?) // io::Error → AppError::Io 通过 #[from]
 }
 
 fn parse_json(content: &str) -> Result<serde_json::Value, AppError> {
@@ -356,12 +356,12 @@ fn main() {
 
 ---
 
-### Exercise 6: Generic Trait with Associated Types ★★★ (~40 min)
+### 练习 6：带关联类型的泛型 Trait ★★★（约 40 分钟）
 
-Design a `Repository<T>` trait with associated `Error` and `Id` types. Implement it for an in-memory store and demonstrate compile-time type safety.
+设计一个带有关联 `Error` 和 `Id` 类型的 `Repository<T>` trait。为内存存储实现它，并演示编译时类型安全。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::collections::HashMap;
@@ -393,7 +393,7 @@ impl InMemoryUserRepo {
     }
 }
 
-// Error type is Infallible — in-memory ops never fail
+// 错误类型是 Infallible — 内存操作永不失败
 impl Repository for InMemoryUserRepo {
     type Item = User;
     type Id = u64;
@@ -415,7 +415,7 @@ impl Repository for InMemoryUserRepo {
     }
 }
 
-// Generic function works with ANY repository:
+// 泛型函数适用于任何 repository：
 fn create_and_fetch<R: Repository>(repo: &mut R, item: R::Item) -> Result<(), R::Error>
 where
     R::Item: std::fmt::Debug,
@@ -441,20 +441,20 @@ fn main() {
 
 ---
 
-### Exercise 7: Safe Wrapper around Unsafe (Ch11) ★★★ (~45 min)
+### 练习 7： unsafe 外部的安全封装（第 11 章）★★★（约 45 分钟）
 
-Write a `FixedVec<T, const N: usize>` — a fixed-capacity, stack-allocated vector.
-Requirements:
-- `push(&mut self, value: T) -> Result<(), T>` returns `Err(value)` when full
-- `pop(&mut self) -> Option<T>` returns and removes the last element
-- `as_slice(&self) -> &[T]` borrows initialized elements
-- All public methods must be safe; all unsafe must be encapsulated with `SAFETY:` comments
-- `Drop` must clean up initialized elements
+编写一个 `FixedVec<T, const N: usize>` — 固定容量、栈分配的向量。
+要求：
+- `push(&mut self, value: T) -> Result<(), T>` 满时返回 `Err(value)`
+- `pop(&mut self) -> Option<T>` 返回并移除最后一个元素
+- `as_slice(&self) -> &[T]` 借用已初始化的元素
+- 所有公共方法必须是安全的；所有 unsafe 必须用 `SAFETY:` 注释封装
+- `Drop` 必须清理已初始化的元素
 
-**Hint**: Use `MaybeUninit<T>` and `[const { MaybeUninit::uninit() }; N]`.
+**提示**：使用 `MaybeUninit<T>` 和 `[const { MaybeUninit::uninit() }; N]`。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::mem::MaybeUninit;
@@ -474,7 +474,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
     pub fn push(&mut self, value: T) -> Result<(), T> {
         if self.len >= N { return Err(value); }
-        // SAFETY: len < N, so data[len] is within bounds.
+        // SAFETY: len < N，所以 data[len] 在边界内。
         self.data[self.len] = MaybeUninit::new(value);
         self.len += 1;
         Ok(())
@@ -483,13 +483,13 @@ impl<T, const N: usize> FixedVec<T, N> {
     pub fn pop(&mut self) -> Option<T> {
         if self.len == 0 { return None; }
         self.len -= 1;
-        // SAFETY: data[len] was initialized (len was > 0 before decrement).
+        // SAFETY: data[len] 已初始化（len 递减前 > 0）。
         Some(unsafe { self.data[self.len].assume_init_read() })
     }
 
     pub fn as_slice(&self) -> &[T] {
-        // SAFETY: data[0..len] are all initialized, and MaybeUninit<T>
-        // has the same layout as T.
+        // SAFETY: data[0..len] 都是已初始化的，且 MaybeUninit<T>
+        // 与 T 有相同的内存布局。
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const T, self.len) }
     }
 
@@ -499,7 +499,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
 impl<T, const N: usize> Drop for FixedVec<T, N> {
     fn drop(&mut self) {
-        // SAFETY: data[0..len] are initialized — drop each one.
+        // SAFETY: data[0..len] 已初始化 — 丢弃每个元素。
         for i in 0..self.len {
             unsafe { self.data[i].assume_init_drop(); }
         }
@@ -513,7 +513,7 @@ fn main() {
     assert_eq!(v.as_slice(), &["hello", "world"]);
     assert_eq!(v.pop(), Some("world".into()));
     assert_eq!(v.len(), 1);
-    // Drop cleans up remaining "hello"
+    // Drop 清理剩余的 "hello"
 }
 ```
 
@@ -521,9 +521,9 @@ fn main() {
 
 ---
 
-### Exercise 8: Declarative Macro — `map!` (Ch12) ★ (~15 min)
+### 练习 8：声明式宏 — `map!`（第 12 章）★（约 15 分钟）
 
-Write a `map!` macro that creates a `HashMap` from key-value pairs, similar to `vec![]`:
+编写一个 `map!` 宏，从键值对创建 `HashMap`，类似于 `vec![]`：
 
 ```rust
 let m = map! {
@@ -534,21 +534,21 @@ assert_eq!(m.get("host"), Some(&"localhost"));
 assert_eq!(m.len(), 2);
 ```
 
-Requirements:
-- Support trailing comma
-- Support empty invocation `map!{}`
-- Work with any types that implement `Into<K>` and `Into<V>` for maximum flexibility
+要求：
+- 支持尾部逗号
+- 支持空调用 `map!{}`
+- 与实现了 `Into<K>` 和 `Into<V>` 的任何类型一起工作，以获得最大灵活性
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 macro_rules! map {
-    // Empty case
+    // 空情况
     () => {
         std::collections::HashMap::new()
     };
-    // One or more key => value pairs (trailing comma optional)
+    // 一个或多个 key => value 对（尾部逗号可选）
     ( $( $key:expr => $val:expr ),+ $(,)? ) => {{
         let mut m = std::collections::HashMap::new();
         $( m.insert($key, $val); )+
@@ -557,7 +557,7 @@ macro_rules! map {
 }
 
 fn main() {
-    // Basic usage:
+    // 基本用法：
     let config = map! {
         "host" => "localhost",
         "port" => "8080",
@@ -566,11 +566,11 @@ fn main() {
     assert_eq!(config.len(), 3);
     assert_eq!(config["host"], "localhost");
 
-    // Empty map:
+    // 空 map：
     let empty: std::collections::HashMap<String, String> = map!();
     assert!(empty.is_empty());
 
-    // Different types:
+    // 不同类型：
     let scores = map! {
         1 => 100,
         2 => 200,
@@ -583,12 +583,12 @@ fn main() {
 
 ---
 
-### Exercise 9: Custom serde Deserialization (Ch10) ★★★ (~45 min)
+### 练习 9：自定义 serde 反序列化（第 10 章）★★★（约 45 分钟）
 
-Design a `Duration` wrapper that deserializes from human-readable strings like `"30s"`, `"5m"`, `"2h"` using a custom serde deserializer. The struct should also serialize back to the same format.
+设计一个 `Duration` 包装器，使用自定义 serde 反序列化器从人类可读的字符串（如 `"30s"`、`"5m"`、`"2h"`）反序列化。该结构体也应该序列化为相同格式。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust,ignore
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -660,7 +660,7 @@ fn main() {
     assert_eq!(config.timeout.0, std::time::Duration::from_secs(30));
     assert_eq!(config.retry_interval.0, std::time::Duration::from_secs(300));
 
-    // Round-trips correctly:
+    // 正确往返：
     let serialized = serde_json::to_string(&config).unwrap();
     assert!(serialized.contains("30s"));
     assert!(serialized.contains("5m"));
@@ -670,28 +670,21 @@ fn main() {
 
 </details>
 
-### Exercise 10 — Concurrent Fetcher with Timeout ★★ (~25 min)
+### 练习 10 — 带超时的并发获取器 ★★（约 25 分钟）
 
-Write an async function `fetch_all` that spawns three `tokio::spawn` tasks, each
-simulating a network call with `tokio::time::sleep`. Join all three with
-`tokio::try_join!` wrapped in `tokio::time::timeout(Duration::from_secs(5), ...)`.
-Return `Result<Vec<String>, ...>` or an error if any task fails or the deadline
-expires.
+编写一个 async 函数 `fetch_all`，生成三个 `tokio::spawn` 任务，每个使用 `tokio::time::sleep` 模拟网络调用。用 `tokio::try_join!` 连接所有三个，外面包装 `tokio::time::timeout(Duration::from_secs(5), ...)`。如果任何任务失败或截止时间到期，返回 `Result<Vec<String>, ...>` 或错误。
 
-**Learning goals**: `tokio::spawn`, `try_join!`, `timeout`, error propagation
-across task boundaries.
+**学习目标**：`tokio::spawn`、`try_join!`、`timeout`、跨任务边界的错误传播。
 
 <details>
-<summary>Hint</summary>
+<summary>提示</summary>
 
-Each spawned task returns `Result<String, _>`. `try_join!` unwraps all three.
-Wrap the whole `try_join!` in `timeout()` — the `Elapsed` error means you hit the
-deadline.
+每个生成的任务返回 `Result<String, _>`。`try_join!` 解开所有三个。将整个 `try_join!` 包装在 `timeout()` 中 — `Elapsed` 错误意味着你碰到了截止时间。
 
 </details>
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```rust,ignore
 use tokio::time::{sleep, timeout, Duration};
@@ -710,9 +703,9 @@ async fn fetch_all() -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let h3 = tokio::spawn(fake_fetch("svc-c", 150));
         tokio::try_join!(h1, h2, h3)
     })
-    .await??; // first ? = timeout, second ? = join
+    .await??; // 第一个 ? = timeout，第二个 ? = join
 
-    Ok(vec![a?, b?, c?]) // unwrap inner Results
+    Ok(vec![a?, b?, c?]) // 解开内部 Results
 }
 
 #[tokio::main]
@@ -726,29 +719,27 @@ async fn main() {
 
 </details>
 
-### Exercise 11 — Async Channel Pipeline ★★★ (~40 min)
+### 练习 11 — Async 通道管道 ★★★（约 40 分钟）
 
-Build a producer → transformer → consumer pipeline using `tokio::sync::mpsc`:
+使用 `tokio::sync::mpsc` 构建 producer → transformer → consumer 管道：
 
-1. **Producer**: sends integers 1..=20 into channel A (capacity 4).
-2. **Transformer**: reads from channel A, squares each value, sends into channel B.
-3. **Consumer**: reads from channel B, collects into a `Vec<u64>`, returns it.
+1. **Producer**：发送整数 1..=20 到通道 A（容量 4）。
+2. **Transformer**：从通道 A 读取，将每个值平方，发送到通道 B。
+3. **Consumer**：从通道 B 读取，收集到 `Vec<u64>`，返回。
 
-All three stages run as concurrent `tokio::spawn` tasks. Use bounded channels to
-demonstrate back-pressure. Assert the final vec equals `[1, 4, 9, ..., 400]`.
+所有三个阶段作为并发 `tokio::spawn` 任务运行。使用有界通道演示背压。断言最终 vec 等于 `[1, 4, 9, ..., 400]`。
 
-**Learning goals**: `mpsc::channel`, bounded back-pressure, `tokio::spawn` with
-move closures, graceful shutdown via channel close.
+**学习目标**：`mpsc::channel`、有界背压、带 move 闭包的 `tokio::spawn`、通过通道关闭优雅关闭。
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```rust,ignore
 use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
-    let (tx_a, mut rx_a) = mpsc::channel::<u64>(4); // bounded — back-pressure
+    let (tx_a, mut rx_a) = mpsc::channel::<u64>(4); // 有界 — 背压
     let (tx_b, mut rx_b) = mpsc::channel::<u64>(4);
 
     // Producer
@@ -756,7 +747,7 @@ async fn main() {
         for i in 1..=20u64 {
             tx_a.send(i).await.unwrap();
         }
-        // tx_a dropped here → channel A closes
+        // tx_a 在这里丢弃 → 通道 A 关闭
     });
 
     // Transformer
@@ -764,7 +755,7 @@ async fn main() {
         while let Some(val) = rx_a.recv().await {
             tx_b.send(val * val).await.unwrap();
         }
-        // tx_b dropped here → channel B closes
+        // tx_b 在这里丢弃 → 通道 B 关闭
     });
 
     // Consumer
@@ -789,4 +780,3 @@ async fn main() {
 </details>
 
 ***
-

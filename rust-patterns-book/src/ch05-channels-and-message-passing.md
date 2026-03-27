@@ -1,14 +1,14 @@
-# 5. Channels and Message Passing 🟢
+# 5. 通道与消息传递 🟢
 
-> **What you'll learn:**
-> - `std::sync::mpsc` basics and when to upgrade to crossbeam-channel
-> - Channel selection with `select!` for multi-source message handling
-> - Bounded vs unbounded channels and backpressure strategies
-> - The actor pattern for encapsulating concurrent state
+> **学习内容：**
+> - `std::sync::mpsc` 基础以及何时应该升级到 crossbeam-channel
+> - 使用 `select!` 进行多源消息处理
+> - 有界通道 vs 无界通道以及背压策略
+> - 使用 Actor 模式封装并发状态
 
-## std::sync::mpsc — The Standard Channel
+## std::sync::mpsc — 标准通道
 
-Rust's standard library provides a multi-producer, single-consumer channel:
+Rust 标准库提供了一个多生产者、单消费者的通道：
 
 ```rust
 use std::sync::mpsc;
@@ -45,12 +45,12 @@ fn main() {
 }
 ```
 
-**Key properties**:
-- **Unbounded** by default (can fill memory if consumer is slow)
-- `mpsc::sync_channel(N)` creates a **bounded** channel with backpressure
-- `rx.recv()` blocks the current thread until a message arrives
-- `rx.try_recv()` returns immediately with `Err(TryRecvError::Empty)` if nothing is ready
-- The channel closes when all `Sender`s are dropped
+**关键特性**：
+- 默认情况下是**无界的**（如果消费者速度较慢，可能会撑爆内存）
+- `mpsc::sync_channel(N)` 创建一个带有背压的**有界**通道
+- `rx.recv()` 会阻塞当前线程直到收到消息
+- `rx.try_recv()` 如果没有消息则立即返回 `Err(TryRecvError::Empty)`
+- 当所有 `Sender` 被丢弃时通道关闭
 
 ```rust
 // Bounded channel with backpressure:
@@ -63,9 +63,9 @@ thread::spawn(move || {
 });
 ```
 
-### crossbeam-channel — The Production Workhorse
+### crossbeam-channel — 生产级主力
 
-`crossbeam-channel` is the de facto standard for production channel usage. It's faster than `std::sync::mpsc` and supports multi-consumer (`mpmc`):
+`crossbeam-channel` 是生产环境中事实上的标准。它比 `std::sync::mpsc` 更快，并支持多消费者（`mpmc`）：
 
 ```rust,ignore
 // Cargo.toml:
@@ -108,9 +108,9 @@ fn main() {
 }
 ```
 
-### Channel Selection (select!)
+### 通道选择（select!）
 
-Listen on multiple channels simultaneously — like `select` in Go:
+同时监听多个通道——就像 Go 中的 `select`：
 
 ```rust,ignore
 use crossbeam_channel::{bounded, tick, after, select};
@@ -154,16 +154,16 @@ fn main() {
 }
 ```
 
-> **Go comparison**: This is exactly like Go's `select` statement over channels.
-> crossbeam's `select!` macro randomizes order to prevent starvation, just like Go.
+> **Go 对比**：这与 Go 的通道 `select` 语句完全相同。
+> crossbeam 的 `select!` 宏随机化顺序以防止饥饿，这与 Go 一样。
 
-### Bounded vs Unbounded and Backpressure
+### 有界 vs 无界以及背压
 
-| Type | Behavior When Full | Memory | Use Case |
-|------|-------------------|--------|----------|
-| **Unbounded** | Never blocks (grows heap) | Unbounded ⚠️ | Rare — only when producer is slower than consumer |
-| **Bounded** | `send()` blocks until space | Fixed | Production default — prevents OOM |
-| **Rendezvous** (bounded(0)) | `send()` blocks until receiver is ready | None | Synchronization / handoff |
+| 类型 | 满时的行为 | 内存 | 使用场景 |
+|------|-----------|------|----------|
+| **无界** | 从不阻塞（堆增长） | 无界 ⚠️ | 罕见——仅当生产者比消费者慢时 |
+| **有界** | `send()` 阻塞直到有空间 | 固定 | 生产环境默认——防止 OOM |
+| **Rendezvous**（bounded(0)） | `send()` 阻塞直到接收者就绪 | 无 | 同步/交接 |
 
 ```rust
 // Rendezvous channel — zero capacity, direct handoff
@@ -172,12 +172,11 @@ let (tx, rx) = crossbeam_channel::bounded(0);
 // This synchronizes the two threads precisely.
 ```
 
-**Rule**: Always use bounded channels in production unless you can prove the
-producer will never outpace the consumer.
+**原则**：在生产环境中始终使用有界通道，除非你能证明生产者永远不会超过消费者。
 
-### Actor Pattern with Channels
+### 使用通道的 Actor 模式
 
-The actor pattern uses channels to serialize access to mutable state — no mutexes needed:
+Actor 模式使用通道来序列化对可变状态的访问——不需要互斥锁：
 
 ```rust
 use std::sync::mpsc;
@@ -254,28 +253,26 @@ fn main() {
 }
 ```
 
-> **When to use actors vs mutexes**: Actors are great when the state has complex
-> invariants, operations take a long time, or you want to serialize access
-> without thinking about lock ordering. Mutexes are simpler for short critical sections.
+> **何时使用 Actor vs 互斥锁**：当状态有复杂的不可变条件、操作耗时较长，或者你想要序列化访问而无需考虑锁顺序时，Actor 非常好。互斥锁对于短的关键段更简单。
 
-> **Key Takeaways — Channels**
-> - `crossbeam-channel` is the production workhorse — faster and more feature-rich than `std::sync::mpsc`
-> - `select!` replaces complex multi-source polling with declarative channel selection
-> - Bounded channels provide natural backpressure; unbounded channels risk OOM
+> **关键要点 — 通道**
+> - `crossbeam-channel` 是生产级主力——比 `std::sync::mpsc` 更快、功能更丰富
+> - `select!` 用声明式通道选择替代了复杂的多源轮询
+> - 有界通道提供自然背压；无界通道有 OOM 风险
 
-> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for threads, Mutex, and shared state. [Ch 15 — Async](ch15-asyncawait-essentials.md) for async channels (`tokio::sync::mpsc`).
+> **另见：** [第 6 章 — 并发](ch06-concurrency-vs-parallelism-vs-threads.md) 线程、互斥锁和共享状态。[第 15 章 — 异步](ch15-asyncawait-essentials.md) 异步通道（`tokio::sync::mpsc`）。
 
 ---
 
-### Exercise: Channel-Based Worker Pool ★★★ (~45 min)
+### 练习：基于通道的工作池 ★★★（约 45 分钟）
 
-Build a worker pool using channels where:
-- A dispatcher sends `Job` structs through a channel
-- N workers consume jobs and send results back
-- Use `std::sync::mpsc` with `Arc<Mutex<Receiver>>` for work-stealing
+使用通道构建一个工作池，其中：
+- 分发器通过通道发送 `Job` 结构体
+- N 个 worker 消费任务并发送结果
+- 使用 `std::sync::mpsc` 和 `Arc<Mutex<Receiver>>` 进行工作窃取
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解答</summary>
 
 ```rust
 use std::sync::mpsc;

@@ -1,95 +1,95 @@
-# Async Rust: From Futures to Production
+# 异步 Rust：从 Future 到生产环境
 
-## Speaker Intro
+## 作者简介
 
-- Principal Firmware Architect in Microsoft SCHIE (Silicon and Cloud Hardware Infrastructure Engineering) team
-- Industry veteran with expertise in security, systems programming (firmware, operating systems, hypervisors), CPU and platform architecture, and C++ systems
-- Started programming in Rust in 2017 (@AWS EC2), and have been in love with the language ever since
+- 微软 SCHIE（硅与云硬件基础设施工程）团队首席固件架构师
+- 拥有安全、系统编程（固件、操作系统、虚拟机监控程序）、CPU 和平台架构以及 C++ 系统方面专业经验的行业资深人士
+- 2017 年在 AWS EC2 开始使用 Rust 编程，从此爱上了这门语言
 
 ---
 
-A deep-dive guide to asynchronous programming in Rust. Unlike most async tutorials that start with `tokio::main` and hand-wave the internals, this guide builds understanding from first principles — the `Future` trait, polling, state machines — then progresses to real-world patterns, runtime selection, and production pitfalls.
+一本深入探讨 Rust 异步编程的指南。与大多数从 `tokio::main` 开始并绕过内部原理的异步教程不同，本指南从第一性原理出发——`Future` trait、轮询、状态机——然后逐步深入到实际生产中的模式、运行时选择和生产环境中的陷阱。
 
-## Who This Is For
-- Rust developers who can write synchronous Rust but find async confusing
-- Developers from C#, Go, Python, or JavaScript who know `async/await` but not Rust's model
-- Anyone who's been bitten by `Future is not Send`, `Pin<Box<dyn Future>>`, or "why does my program hang?"
+## 适用人群
 
-## Prerequisites
+- 能够编写同步 Rust 但觉得异步复杂的 Rust 开发者
+- 来自 C#、Go、Python 或 JavaScript 的开发者，熟悉 `async/await` 但不了解 Rust 的异步模型
+- 曾被 `Future is not Send`、`Pin<Box<dyn Future>>` 或"为什么我的程序卡住了"困扰过的任何人
 
-You should be comfortable with:
-- Ownership, borrowing, and lifetimes
-- Traits and generics (including `impl Trait`)
-- Using `Result<T, E>` and the `?` operator
-- Basic multi-threading (`std::thread::spawn`, `Arc`, `Mutex`)
+## 前置要求
 
-No prior async Rust experience is needed.
+你应该熟悉以下内容：
 
-## How to Use This Book
+- 所有权、借用和生命周期
+- Trait 和泛型（包括 `impl Trait`）
+- 使用 `Result<T, E>` 和 `?` 操作符
+- 基础多线程（`std::thread::spawn`、`Arc`、`Mutex`）
 
-**Read linearly the first time.** Parts I–III build on each other. Each chapter has:
+不需要任何异步 Rust 经验。
 
-| Symbol | Meaning |
-|--------|---------|
-| 🟢 | Beginner — foundational concept |
-| 🟡 | Intermediate — requires earlier chapters |
-| 🔴 | Advanced — deep internals or production patterns |
+## 如何使用本书
 
-Each chapter includes:
-- A **"What you'll learn"** block at the top
-- **Mermaid diagrams** for visual learners
-- An **inline exercise** with a hidden solution
-- **Key Takeaways** summarizing the core ideas
-- **Cross-references** to related chapters
+**第一次阅读时请按顺序阅读。** 第一至第三部分内容层层递进。每章包含：
 
-## Pacing Guide
+| 符号 | 含义 |
+|------|------|
+| 🟢 | 初级 — 基础概念 |
+| 🟡 | 中级 — 需要前面章节的基础 |
+| 🔴 | 高级 — 深层内部原理或生产模式 |
 
-| Chapters | Topic | Suggested Time | Checkpoint |
-|----------|-------|----------------|------------|
-| 1–5 | How Async Works | 6–8 hours | You can explain `Future`, `Poll`, `Pin`, and why Rust has no built-in runtime |
-| 6–10 | The Ecosystem | 6–8 hours | You can build futures by hand, choose a runtime, and use tokio's API |
-| 11–13 | Production Async | 6–8 hours | You can write production-grade async code with streams, proper error handling, and graceful shutdown |
-| Capstone | Chat Server | 4–6 hours | You've built a real async application integrating all concepts |
+每章包含：
+- 顶部的**"你将学到什么"**板块
+- **Mermaid 图表**，供视觉学习者使用
+- **嵌入式练习**，附有隐藏答案
+- **核心要点**，总结核心思想
+- 与相关章节的**交叉引用**
 
-**Total estimated time: 22–30 hours**
+## 学习进度指南
 
-## Working Through Exercises
+| 章节 | 主题 | 建议时长 | 里程碑 |
+|------|------|----------|--------|
+| 1–5 | 异步工作原理 | 6–8 小时 | 能够解释 `Future`、`Poll`、`Pin`，以及为什么 Rust 没有内置运行时 |
+| 6–10 | 异步生态系统 | 6–8 小时 | 能够手动构建 futures、选择运行时，并使用 tokio 的 API |
+| 11–13 | 生产级异步 | 6–8 小时 | 能够编写包含 streams、正确错误处理和优雅关闭的生产级异步代码 |
+| 终极项目 | 聊天服务器 | 4–6 小时 | 已构建一个整合所有概念的完整异步应用程序 |
 
-Every content chapter has an inline exercise. The capstone (Ch 16) integrates everything into a single project. For maximum learning:
+**预计总时长：22–30 小时**
 
-1. **Try the exercise before expanding the solution** — struggling is where learning happens
-2. **Type the code, don't copy-paste** — muscle memory matters for Rust's syntax
-3. **Run every example** — `cargo new async-exercises` and test as you go
+## 完成练习
 
-## Table of Contents
+每个内容章节都有嵌入式练习。终极项目（第 16 章）将所有内容整合到一个项目中。为了最大化学习效果：
 
-### Part I: How Async Works
+1. **展开答案之前先尝试练习**——思考的过程才是真正学习发生的地方
+2. **亲手敲代码，不要复制粘贴**——对于 Rust 的语法，肌肉记忆很重要
+3. **运行每个示例**——`cargo new async-exercises`，边学边测
 
-- [1. Why Async is Different in Rust](ch01-why-async-is-different-in-rust.md) 🟢 — The fundamental difference: Rust has no built-in runtime
-- [2. The Future Trait](ch02-the-future-trait.md) 🟡 — `poll()`, `Waker`, and the contract that makes it all work
-- [3. How Poll Works](ch03-how-poll-works.md) 🟡 — The polling state machine and a minimal executor
-- [4. Pin and Unpin](ch04-pin-and-unpin.md) 🔴 — Why self-referential structs need pinning
-- [5. The State Machine Reveal](ch05-the-state-machine-reveal.md) 🟢 — What the compiler actually generates from `async fn`
+## 目录
 
-### Part II: The Ecosystem
+### 第一部分：异步工作原理
 
-- [6. Building Futures by Hand](ch06-building-futures-by-hand.md) 🟡 — TimerFuture, Join, Select from scratch
-- [7. Executors and Runtimes](ch07-executors-and-runtimes.md) 🟡 — tokio, smol, async-std, embassy — how to choose
-- [8. Tokio Deep Dive](ch08-tokio-deep-dive.md) 🟡 — Runtime flavors, spawn, channels, sync primitives
-- [9. When Tokio Isn't the Right Fit](ch09-when-tokio-isnt-the-right-fit.md) 🟡 — LocalSet, FuturesUnordered, runtime-agnostic design
-- [10. Async Traits](ch10-async-traits.md) 🟡 — RPITIT, dyn dispatch, trait_variant, async closures
+- [1. 为什么 Rust 的异步与众不同](ch01-why-async-is-different-in-rust.md) 🟢 — 根本区别：Rust 没有内置运行时
+- [2. Future Trait](ch02-the-future-trait.md) 🟡 — `poll()`、`Waker`，以及使这一切工作的契约
+- [3. Poll 如何工作](ch03-how-poll-works.md) 🟡 — 轮询状态机和一个最小执行器
+- [4. Pin 和 Unpin](ch04-pin-and-unpin.md) 🔴 — 为什么自引用结构体需要 pinning
+- [5. 状态机揭秘](ch05-the-state-machine-reveal.md) 🟢 — 编译器从 `async fn` 实际生成的代码
 
-### Part III: Production Async
+### 第二部分：异步生态系统
 
-- [11. Streams and AsyncIterator](ch11-streams-and-asynciterator.md) 🟡 — Async iteration, AsyncRead/Write, stream combinators
-- [12. Common Pitfalls](ch12-common-pitfalls.md) 🔴 — 9 production bugs and how to avoid them
-- [13. Production Patterns](ch13-production-patterns.md) 🔴 — Graceful shutdown, backpressure, Tower middleware
+- [6. 手动构建 Futures](ch06-building-futures-by-hand.md) 🟡 — 从零开始实现 TimerFuture、Join、Select
+- [7. 执行器和运行时](ch07-executors-and-runtimes.md) 🟡 — tokio、smol、async-std、embassy——如何选择
+- [8. Tokio 深度探讨](ch08-tokio-deep-dive.md) 🟡 — 运行时变体、spawn、通道、同步原语
+- [9. 何时不应使用 Tokio](ch09-when-tokio-isnt-the-right-fit.md) 🟡 — LocalSet、FuturesUnordered、运行时无关设计
+- [10. 异步 Traits](ch10-async-traits.md) 🟡 — RPITIT、dyn dispatch、trait_variant、异步闭包
 
-### Appendices
+### 第三部分：生产级异步
 
-- [Summary and Reference Card](ch15-summary-and-reference-card.md) — Quick-lookup tables and decision trees
-- [Capstone Project: Async Chat Server](ch16-capstone-project.md) — Build a complete async application
+- [11. Streams 和 AsyncIterator](ch11-streams-and-asynciterator.md) 🟡 — 异步迭代、AsyncRead/Write、stream 组合器
+- [12. 常见陷阱](ch12-common-pitfalls.md) 🔴 — 9 个生产环境 bug 及如何避免
+- [13. 生产模式](ch13-production-patterns.md) 🔴 — 优雅关闭、背压、Tower 中间件
+
+### 附录
+
+- [摘要和参考卡片](ch15-summary-and-reference-card.md) — 快速查询表和决策树
+- [终极项目：异步聊天服务器](ch16-capstone-project.md) — 构建一个完整的异步应用程序
 
 ***
-
-

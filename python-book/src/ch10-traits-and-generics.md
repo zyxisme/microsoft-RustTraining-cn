@@ -1,7 +1,7 @@
-## Traits vs Duck Typing
+## Trait 入门
 
-> **What you'll learn:** Traits as explicit contracts (vs Python duck typing), `Protocol` (PEP 544) ≈ Trait,
-> generic type bounds with `where` clauses, trait objects (`dyn Trait`) vs static dispatch, and common std traits.
+> **What you'll learn:** Trait 作为显式契约（vs Python 鸭子类型），`Protocol`（PEP 544）≈ Trait，
+> 带 `where` 子句的泛型约束，`dyn Trait` trait 对象 vs 静态分发，以及常见的 std trait。
 >
 > **Difficulty:** 🟡 Intermediate
 

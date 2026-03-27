@@ -1,17 +1,17 @@
-# 13. Testing and Benchmarking Patterns 🟢
+# 13. 测试和基准测试模式 🟢
 
-> **What you'll learn:**
-> - Rust's three test tiers: unit, integration, and doc tests
-> - Property-based testing with proptest for discovering edge cases
-> - Benchmarking with criterion for reliable performance measurement
-> - Mocking strategies without heavyweight frameworks
+> **你将学到：**
+> - Rust 的三层测试：单元测试、集成测试和文档测试
+> - 使用 proptest 进行属性测试以发现边界情况
+> - 使用 criterion 进行可靠的性能基准测试
+> - 无需重量级框架的 Mock 策略
 
-## Unit Tests, Integration Tests, Doc Tests
+## 单元测试、集成测试、文档测试
 
-Rust has three testing tiers built into the language:
+Rust 有三层测试内置于语言中：
 
 ```rust
-// --- Unit tests: in the same file as the code ---
+// --- 单元测试：与代码在同一文件中 ---
 pub fn factorial(n: u64) -> u64 {
     (1..=n).product()
 }
@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn test_factorial_zero() {
-        // (1..=0).product() returns 1 — the multiplication identity for empty ranges
+        // (1..=0).product() 返回 1 — 空范围的乘法恒等式
         assert_eq!(factorial(0), 1);
     }
 
@@ -32,19 +32,19 @@ mod tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)] // overflow checks are only enabled in debug mode
+    #[cfg(debug_assertions)] // 溢出检查仅在调试模式下启用
     #[should_panic(expected = "overflow")]
     fn test_factorial_overflow() {
-        // ⚠️ This test only passes in debug mode (overflow checks enabled).
-        // In release mode (`cargo test --release`), u64 arithmetic wraps
-        // silently and no panic occurs. Use `checked_mul` or the
-        // `overflow-checks = true` profile setting for release-mode safety.
-        factorial(100); // Should panic on overflow
+        // ⚠️ 此测试仅在调试模式下通过（启用溢出检查）。
+        // 在发布模式（`cargo test --release`）下，u64 算术会静默环绕
+        // 不会发生 panic。若要在发布模式下安全，请使用 `checked_mul` 或
+        // `overflow-checks = true` 配置。
+        factorial(100); // 应该在溢出时 panic
     }
 
     #[test]
     fn test_with_result() -> Result<(), Box<dyn std::error::Error>> {
-        // Tests can return Result — ? works inside!
+        // 测试可以返回 Result — ? 在内部工作！
         let value: u64 = "42".parse()?;
         assert_eq!(value, 42);
         Ok(())
@@ -53,9 +53,9 @@ mod tests {
 ```
 
 ```rust
-// --- Integration tests: in tests/ directory ---
+// --- 集成测试：在 tests/ 目录中 ---
 // tests/integration_test.rs
-// These test your crate's PUBLIC API only
+// 这些只测试你的 crate 的公共 API
 
 use my_crate::factorial;
 
@@ -66,19 +66,19 @@ fn test_factorial_from_outside() {
 ```
 
 ```rust
-// --- Doc tests: in documentation comments ---
-/// Computes the factorial of `n`.
+// --- 文档测试：在文档注释中 ---
+/// 计算 `n` 的阶乘。
 ///
-/// # Examples
+/// # 示例
 ///
 /// ```
 /// use my_crate::factorial;
 /// assert_eq!(factorial(5), 120);
 /// ```
 ///
-/// # Panics
+/// # Panic
 ///
-/// Panics if the result overflows `u64`.
+/// 如果结果溢出 `u64` 则 panic。
 ///
 /// ```should_panic
 /// my_crate::factorial(100);
@@ -86,17 +86,17 @@ fn test_factorial_from_outside() {
 pub fn factorial(n: u64) -> u64 {
     (1..=n).product()
 }
-// Doc tests are compiled and run by `cargo test` — they keep examples honest.
+// 文档测试由 `cargo test` 编译和运行 — 它们保持示例的正确性。
 ```
 
-### Test Fixtures and Setup
+### 测试夹具和设置
 
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // Shared setup — create a helper function
+    // 共享设置 — 创建一个辅助函数
     fn setup_database() -> TestDb {
         let db = TestDb::new_in_memory();
         db.run_migrations();
@@ -119,7 +119,7 @@ mod tests {
         assert!(db.get_user("Bob").is_none());
     }
 
-    // Cleanup with Drop (RAII):
+    // 使用 Drop 进行清理（RAII）：
     struct TempDir {
         path: std::path::PathBuf,
     }
@@ -141,16 +141,16 @@ mod tests {
 
     #[test]
     fn test_file_operations() {
-        let dir = TempDir::new(); // Created
+        let dir = TempDir::new(); // 已创建
         std::fs::write(dir.path.join("test.txt"), "hello").unwrap();
         assert!(dir.path.join("test.txt").exists());
-    } // dir dropped here → temp directory cleaned up
+    } // dir 在这里 drop → 临时目录被清理
 }
 ```
 
-### Property-Based Testing (proptest)
+### 属性测试（proptest）
 
-Instead of testing specific values, test *properties* that should always hold:
+不是测试特定值，而是测试*属性*，这些属性应该始终成立：
 
 ```rust
 // Cargo.toml: proptest = "1"
@@ -163,7 +163,7 @@ fn reverse(v: &[i32]) -> Vec<i32> {
 proptest! {
     #[test]
     fn test_reverse_twice_is_identity(v in prop::collection::vec(any::<i32>(), 0..100)) {
-        // Property: reversing twice gives back the original
+        // 属性：反转两次得到原始值
         assert_eq!(reverse(&reverse(&v)), v);
     }
 
@@ -177,12 +177,12 @@ proptest! {
         v.sort();
         let sorted_once = v.clone();
         v.sort();
-        assert_eq!(v, sorted_once); // Sorting twice = sorting once
+        assert_eq!(v, sorted_once); // 排序两次 = 排序一次
     }
 
     #[test]
     fn test_parse_roundtrip(x in any::<f64>().prop_filter("finite", |x| x.is_finite())) {
-        // Property: formatting then parsing gives back the same value
+        // 属性：格式化后再解析得到相同的值
         let s = format!("{x}");
         let parsed: f64 = s.parse().unwrap();
         prop_assert!((x - parsed).abs() < f64::EPSILON);
@@ -190,12 +190,11 @@ proptest! {
 }
 ```
 
-> **When to use proptest**: When you're testing a function with a large input
-> space and want confidence it works for edge cases you didn't think of.
-> proptest generates hundreds of random inputs and shrinks failures to the
-> minimal reproducing case.
+> **何时使用 proptest**：当你要测试的函数输入空间很大，
+> 并且希望确信它对你没想到的边界情况也能工作。
+> proptest 生成数百个随机输入并将失败缩小到最小复现案例。
 
-### Benchmarking with criterion
+### 使用 criterion 进行基准测试
 
 ```rust
 // Cargo.toml:
@@ -221,7 +220,7 @@ fn bench_fibonacci(c: &mut Criterion) {
         b.iter(|| fibonacci(black_box(20)))
     });
 
-    // Compare different implementations:
+    // 比较不同实现：
     let mut group = c.benchmark_group("fibonacci_compare");
     for size in [10, 15, 20, 25] {
         group.bench_with_input(
@@ -236,16 +235,16 @@ fn bench_fibonacci(c: &mut Criterion) {
 criterion_group!(benches, bench_fibonacci);
 criterion_main!(benches);
 
-// Run: cargo bench
-// Produces HTML reports in target/criterion/
+// 运行：cargo bench
+// 在 target/criterion/ 生成 HTML 报告
 ```
 
-### Mocking Strategies without Frameworks
+### 无框架的 Mock 策略
 
-Rust's trait system provides natural dependency injection — no mocking framework required:
+Rust 的 trait 系统提供自然的依赖注入 — 无需 mock 框架：
 
 ```rust
-// Define behavior as a trait
+// 将行为定义为 trait
 trait Clock {
     fn now(&self) -> std::time::Instant;
 }
@@ -254,13 +253,13 @@ trait HttpClient {
     fn get(&self, url: &str) -> Result<String, String>;
 }
 
-// Production implementations
+// 生产实现
 struct RealClock;
 impl Clock for RealClock {
     fn now(&self) -> std::time::Instant { std::time::Instant::now() }
 }
 
-// Service depends on abstractions
+// 服务依赖于抽象
 struct CacheService<C: Clock, H: HttpClient> {
     clock: C,
     client: H,
@@ -269,12 +268,12 @@ struct CacheService<C: Clock, H: HttpClient> {
 
 impl<C: Clock, H: HttpClient> CacheService<C, H> {
     fn fetch(&self, url: &str) -> Result<String, String> {
-        // Uses self.clock and self.client — injectable
+        // 使用 self.clock 和 self.client — 可注入的
         self.client.get(url)
     }
 }
 
-// Test with mock implementations — no framework needed!
+// 使用 mock 实现进行测试 — 无需框架！
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,29 +307,31 @@ mod tests {
 }
 ```
 
-> **Test philosophy**: Prefer real dependencies in integration tests, trait-based
-> mocks in unit tests. Avoid mocking frameworks unless your dependency graph is
-> complex — Rust's trait generics handle most cases naturally.
+> **测试理念**：在集成测试中优先使用真实依赖，
+> 在单元测试中使用基于 trait 的 mock。
+> 除非依赖图复杂，否则避免 mock 框架 —
+> Rust 的 trait 泛型在大多情况下自然处理。
 
-> **Key Takeaways — Testing**
-> - Doc tests (`///`) double as documentation and regression tests — they're compiled and run
-> - `proptest` generates random inputs to find edge cases you'd never write manually
-> - `criterion` provides statistically rigorous benchmarks with HTML reports
-> - Mock via trait generics + test doubles, not mock frameworks
+> **关键要点 — 测试**
+> - 文档测试（`///`）既是文档又是回归测试 — 它们被编译和运行
+> - `proptest` 生成随机输入以发现你永远不会手动编写的边界情况
+> - `criterion` 提供带有 HTML 报告的统计严格基准
+> - 通过 trait 泛型 + 测试替身进行 mock，而不是 mock 框架
 
-> **See also:** [Ch 12 — Macros](ch12-macros-code-that-writes-code.md) for testing macro-generated code. [Ch 14 — API Design](ch14-crate-architecture-and-api-design.md) for how module layout affects test organization.
+> **另请参阅：** [第 12 章 — 宏](ch12-macros-code-that-writes-code.md) 用于测试宏生成的代码。[第 14 章 — API 设计](ch14-crate-architecture-and-api-design.md) 用于模块布局如何影响测试组织。
 
 ---
 
-### Exercise: Property-Based Testing with proptest ★★ (~25 min)
+### 练习：使用 proptest 进行属性测试 ★★（约 25 分钟）
 
-Write a `SortedVec<T: Ord>` wrapper that maintains a sorted invariant. Use `proptest` to verify that:
-1. After any sequence of insertions, the internal vec is always sorted
-2. `contains()` agrees with the stdlib `Vec::contains()`
-3. The length equals the number of insertions
+编写一个维护排序不变量的 `SortedVec<T: Ord>` 包装器。
+使用 `proptest` 验证：
+1. 在任何插入序列之后，内部 vec 始终是排序的
+2. `contains()` 与 stdlib `Vec::contains()` 一致
+3. 长度等于插入次数
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust,ignore
 #[derive(Debug)]

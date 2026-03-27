@@ -1,26 +1,25 @@
-# Putting It All Together — A Complete Diagnostic Platform 🟡
+# 整合一切 — 完整的诊断平台 🟡
 
-> **What you'll learn:** How all seven core patterns (ch02–ch09) compose into a single diagnostic workflow — authentication, sessions, typed commands, audit tokens, dimensional results, validated data, and phantom-typed registers — with zero total runtime overhead.
+> **你将学到：** 七个核心模式（ch02–ch09）如何组合成单个诊断工作流——认证、会话、类型化命令、审计令牌、量纲结果、验证数据和幽灵类型寄存器——总运行时开销为零。
 >
-> **Cross-references:** Every core pattern chapter (ch02–ch09), [ch14](ch14-testing-type-level-guarantees.md) (testing these guarantees)
+> **交叉引用：** 每个核心模式章节（ch02–ch09），[ch14](ch14-testing-type-level-guarantees.md)（测试这些保证）
 
-## Goal
+## 目标
 
-This chapter combines **seven patterns** from chapters 2–9 into a single, realistic
-diagnostic workflow. We'll build a server health check that:
+本章将 **七个模式** 从第2-9章组合成单个现实的诊断工作流。我们将构建一个服务器健康检查，它：
 
-1. **Authenticates** (capability token — ch04)
-2. **Opens an IPMI session** (type-state — ch05)
-3. **Sends typed commands** (typed commands — ch02)
-4. **Uses single-use tokens** for audit logging (single-use types — ch03)
-5. **Returns dimensional results** (dimensional analysis — ch06)
-6. **Validates FRU data** (validated boundaries — ch07)
-7. **Reads typed registers** (phantom types — ch09)
+1. **认证**（能力令牌 — ch04）
+2. **打开 IPMI 会话**（类型状态 — ch05）
+3. **发送类型化命令**（类型化命令 — ch02）
+4. **使用单次使用令牌** 进行审计日志（单次使用类型 — ch03）
+5. **返回量纲结果**（量纲分析 — ch06）
+6. **验证 FRU 数据**（验证边界 — ch07）
+7. **读取类型化寄存器**（幽灵类型 — ch09）
 
 ```rust,ignore
 use std::marker::PhantomData;
 use std::io;
-// ──── Pattern 1: Dimensional Types (ch06) ────
+// ──── 模式1: 量纲类型 (ch06) ────
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Celsius(pub f64);
@@ -31,11 +30,11 @@ pub struct Rpm(pub f64);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Volts(pub f64);
 
-// ──── Pattern 2: Typed Commands (ch02) ────
+// ──── 模式2: 类型化命令 (ch02) ────
 
-/// Same trait shape as ch02, using methods (not associated constants)
-/// for consistency. Associated constants (`const NETFN: u8`) are an
-/// equally valid alternative when the value is truly fixed per type.
+/// 与 ch02 相同的 trait 形状，使用方法（不是关联常量）
+/// 以保持一致性。当值真正固定于每个类型时，关联常量
+///（`const NETFN: u8`）是同样有效的替代方案。
 pub trait IpmiCmd {
     type Response;
     fn net_fn(&self) -> u8;
@@ -46,7 +45,7 @@ pub trait IpmiCmd {
 
 pub struct ReadTemp { pub sensor_id: u8 }
 impl IpmiCmd for ReadTemp {
-    type Response = Celsius;   // ← dimensional type!
+    type Response = Celsius;   // ← 量纲类型！
     fn net_fn(&self) -> u8 { 0x04 }
     fn cmd_byte(&self) -> u8 { 0x2D }
     fn payload(&self) -> Vec<u8> { vec![self.sensor_id] }
@@ -72,7 +71,7 @@ impl IpmiCmd for ReadFanSpeed {
     }
 }
 
-// ──── Pattern 3: Capability Token (ch04) ────
+// ──── 模式3: 能力令牌 (ch04) ────
 
 pub struct AdminToken { _private: () }
 
@@ -84,7 +83,7 @@ pub fn authenticate(user: &str, pass: &str) -> Result<AdminToken, &'static str> 
     }
 }
 
-// ──── Pattern 4: Type-State Session (ch05) ────
+// ──── 模式4: 类型状态会话 (ch05) ────
 
 pub struct Idle;
 pub struct Active;
@@ -101,7 +100,7 @@ impl Session<Idle> {
 
     pub fn activate(
         self,
-        _admin: &AdminToken,  // ← requires capability token
+        _admin: &AdminToken,  // ← 需要能力令牌
     ) -> Result<Session<Active>, String> {
         println!("Session activated on {}", self.host);
         Ok(Session { host: self.host, _state: PhantomData })
@@ -109,24 +108,24 @@ impl Session<Idle> {
 }
 
 impl Session<Active> {
-    /// Execute a typed command — only available on Active sessions.
-    /// Returns io::Result to propagate transport errors (consistent with ch02).
+    /// 执行类型化命令 — 仅在 Active 会话上可用。
+    /// 返回 io::Result 以传播传输错误（与 ch02 一致）。
     pub fn execute<C: IpmiCmd>(&mut self, cmd: &C) -> io::Result<C::Response> {
         let raw_response = self.raw_send(cmd.net_fn(), cmd.cmd_byte(), &cmd.payload())?;
         cmd.parse_response(&raw_response)
     }
 
     fn raw_send(&self, _nf: u8, _cmd: u8, _data: &[u8]) -> io::Result<Vec<u8>> {
-        Ok(vec![42, 0x1E]) // stub: raw IPMI response
+        Ok(vec![42, 0x1E]) // stub: 原始 IPMI 响应
     }
 
     pub fn close(self) { println!("Session closed"); }
 }
 
-// ──── Pattern 5: Single-Use Audit Token (ch03) ────
+// ──── 模式5: 单次使用审计令牌 (ch03) ────
 
-/// Each diagnostic run gets a unique audit token.
-/// Not Clone, not Copy — ensures each audit entry is unique.
+/// 每次诊断运行获得唯一的审计令牌。
+/// 不是 Clone，不是 Copy — 确保每个审计条目是唯一的。
 pub struct AuditToken {
     run_id: u64,
 }
@@ -136,16 +135,16 @@ impl AuditToken {
         AuditToken { run_id }
     }
 
-    /// Consume the token to write an audit log entry.
+    /// 消耗令牌以写入审计日志条目。
     pub fn log(self, message: &str) {
         println!("[AUDIT run_id={}] {}", self.run_id, message);
-        // token is consumed — can't log the same run_id twice
+        // 令牌被消耗 — 不能两次记录相同的 run_id
     }
 }
 
-// ──── Pattern 6: Validated Boundary (ch07) ────
-// Simplified from ch07's full ValidFru — only the fields needed for this
-// composite example.  See ch07 for the complete TryFrom<RawFruData> version.
+// ──── 模式6: 验证边界 (ch07) ────
+// 简化自 ch07 的完整 ValidFru — 仅包含这个
+// 组合示例所需的字段。参见 ch07 获取完整的 TryFrom<RawFruData> 版本。
 
 pub struct ValidFru {
     pub board_serial: String,
@@ -163,7 +162,7 @@ impl ValidFru {
     }
 }
 
-// ──── Pattern 7: Phantom-Typed Registers (ch09) ────
+// ──── 模式7: 幽灵类型寄存器 (ch09) ────
 
 pub struct Width16;
 pub struct Reg<W> { offset: u16, _w: PhantomData<W> }
@@ -186,82 +185,80 @@ impl PcieDev {
     }
 }
 
-// ──── Composite Workflow ────
+// ──── 组合工作流 ────
 
 fn full_diagnostic() -> Result<(), String> {
-    // 1. Authenticate → get capability token
+    // 1. 认证 → 获取能力令牌
     let admin = authenticate("admin", "secret")
         .map_err(|e| e.to_string())?;
 
-    // 2. Connect and activate session (type-state: Idle → Active)
+    // 2. 连接并激活会话（类型状态：Idle → Active）
     let session = Session::connect("192.168.1.100");
-    let mut session = session.activate(&admin)?;  // requires AdminToken
+    let mut session = session.activate(&admin)?;  // 需要 AdminToken
 
-    // 3. Send typed commands (response type matches command)
+    // 3. 发送类型化命令（响应类型匹配命令）
     let temp: Celsius = session.execute(&ReadTemp { sensor_id: 0 })
         .map_err(|e| e.to_string())?;
     let fan: Rpm = session.execute(&ReadFanSpeed { fan_id: 1 })
         .map_err(|e| e.to_string())?;
 
-    // Type mismatch would be caught:
+    // 类型不匹配会被捕获：
     // let wrong: Volts = session.execute(&ReadTemp { sensor_id: 0 })?;
-    //  ❌ ERROR: expected Celsius, found Volts
+    //  ❌ 错误：期望 Celsius，发现 Volts
 
-    // 4. Read phantom-typed PCIe registers
+    // 4. 读取幽灵类型 PCIe 寄存器
     let pcie = PcieDev::new();
-    let vid: u16 = pcie.vendor_id.read();  // guaranteed u16
+    let vid: u16 = pcie.vendor_id.read();  // 保证是 u16
 
-    // 5. Validate FRU data at the boundary
+    // 5. 在边界验证 FRU 数据
     let raw_fru = vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0xFD];
     let fru = ValidFru::parse(&raw_fru)
         .map_err(|e| e.to_string())?;
 
-    // 6. Issue single-use audit token
+    // 6. 颁发单次使用审计令牌
     let audit = AuditToken::issue(1001);
 
-    // 7. Generate report (all data is typed and validated)
+    // 7. 生成报告（所有数据都是类型化的和验证的）
     let report = format!(
         "Server: {} (SN: {}), VID: 0x{:04X}, CPU: {:?}, Fan: {:?}",
         fru.product_name, fru.board_serial, vid, temp, fan,
     );
 
-    // 8. Consume audit token — can't log twice
+    // 8. 消耗审计令牌 — 不能两次记录
     audit.log(&report);
-    // audit.log("oops");  // ❌ use of moved value
+    // audit.log("oops");  // ❌ 使用了已移动的值
 
-    // 9. Close session (type-state: Active → dropped)
+    // 9. 关闭会话（类型状态：Active → dropped）
     session.close();
 
     Ok(())
 }
 ```
 
-### What the Compiler Proves
+### 编译器证明了什么
 
-| Bug class | How it's prevented | Pattern |
+| Bug 类别 | 如何防止 | 模式 |
 |-----------|-------------------|---------|
-| Unauthenticated access | `activate()` requires `&AdminToken` | Capability token |
-| Command in wrong session state | `execute()` only exists on `Session<Active>` | Type-state |
-| Wrong response type | `ReadTemp::Response = Celsius`, fixed by trait | Typed commands |
-| Unit confusion (°C vs RPM) | `Celsius` ≠ `Rpm` ≠ `Volts` | Dimensional types |
-| Register width mismatch | `Reg<Width16>` returns `u16` | Phantom types |
-| Processing unvalidated data | Must call `ValidFru::parse()` first | Validated boundary |
-| Duplicate audit entries | `AuditToken` is consumed on log | Single-use type |
-| Out-of-order power sequencing | Each step requires previous token | Capability tokens (ch04) |
+| 未认证访问 | `activate()` 需要 `&AdminToken` | 能力令牌 |
+| 在错误会话状态下的命令 | `execute()` 仅存在于 `Session<Active>` | 类型状态 |
+| 错误的响应类型 | `ReadTemp::Response = Celsius`，由 trait 固定 | 类型化命令 |
+| 单位混淆（°C vs RPM） | `Celsius` ≠ `Rpm` ≠ `Volts` | 量纲类型 |
+| 寄存器宽度不匹配 | `Reg<Width16>` 返回 `u16` | 幽灵类型 |
+| 处理未验证数据 | 必须首先调用 `ValidFru::parse()` | 验证边界 |
+| 重复审计条目 | `AuditToken` 在 log 时被消耗 | 单次使用类型 |
+| 乱序电源排序 | 每步需要前一个令牌 | 能力令牌（ch04） |
 
-**Total runtime overhead of ALL these guarantees: zero.**
+**所有这些保证的总运行时开销：为零。**
 
-Every check happens at compile time. The generated assembly is identical to
-hand-written C code with no checks at all — but **C can have bugs, this can't**.
+每次检查都在编译时发生。生成的汇编与未检查的 C 代码完全相同——但 **C 可能会有 bug，这个不会**。
 
-## Key Takeaways
+## 关键要点
 
-1. **Seven patterns compose seamlessly** — capability tokens, type-state, typed commands, single-use types, dimensional types, validated boundaries, and phantom types all work together.
-2. **The compiler proves eight bug classes impossible** — see the "What the Compiler Proves" table above.
-3. **Zero total runtime overhead** — the generated assembly is identical to unchecked C code.
-4. **Each pattern is independently useful** — you don't need all seven; adopt them incrementally.
-5. **The integration chapter is a design template** — use it as a starting point for your own typed diagnostic workflows.
-6. **From IPMI to Redfish at scale** — ch17 and ch18 apply these same seven patterns (plus capability mixins from ch08) to a full Redfish client and server. The IPMI workflow here is the foundation; the Redfish walkthroughs show how the composition scales to production systems with multiple data sources and schema-version constraints.
+1. **七个模式无缝组合** — 能力令牌、类型状态、类型化命令、单次使用类型、量纲类型、验证边界和幽灵类型都可以协同工作。
+2. **编译器证明八类 bug 不可能** — 参见上方的"编译器证明了什么"表。
+3. **零总运行时开销** — 生成的汇编与未检查的 C 代码完全相同。
+4. **每个模式独立有用** — 你不需要全部七个；可以增量采用。
+5. **整合章节是一个设计模板** — 用它作为你自己类型化诊断工作流的起点。
+6. **从 IPMI 到大规模 Redfish** — ch17 和 ch18 将这七个模式（加上 ch08 的能力混合）应用于完整的 Redfish 客户端和服务器。这里的 IPMI 工作流是基础；Redfish 演练展示组合如何扩展到具有多个数据源和模式版本约束的生产系统。
 
 ---
-

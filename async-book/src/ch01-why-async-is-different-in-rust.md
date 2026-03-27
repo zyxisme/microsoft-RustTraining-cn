@@ -1,20 +1,20 @@
-# 1. Why Async is Different in Rust 🟢
+# 1. 为什么 Rust 的异步与众不同 🟢
 
-> **What you'll learn:**
-> - Why Rust has no built-in async runtime (and what that means for you)
-> - The three key properties: lazy execution, no runtime, zero-cost abstraction
-> - When async is the right tool (and when it's slower)
-> - How Rust's model compares to C#, Go, Python, and JavaScript
+> **你将学到：**
+> - 为什么 Rust 没有内置异步运行时（以及这对你意味着什么）
+> - 三个关键特性：惰性执行、无运行时、零成本抽象
+> - 何时适合使用异步（以及何时会更慢）
+> - Rust 的模型与 C#、Go、Python 和 JavaScript 的对比
 
-## The Fundamental Difference
+## 根本区别
 
-Most languages with `async/await` hide the machinery. C# has the CLR thread pool. JavaScript has the event loop. Go has goroutines and a scheduler built into the runtime. Python has `asyncio`.
+大多数带有 `async/await` 的语言都隐藏了底层机制。C# 有 CLR 线程池。JavaScript 有事件循环。Go 有 goroutine 和内置于运行时中的调度器。Python 有 `asyncio`。
 
-**Rust has nothing.**
+**Rust 什么都没有。**
 
-There is no built-in runtime, no thread pool, no event loop. The `async` keyword is a zero-cost compilation strategy — it transforms your function into a state machine that implements the `Future` trait. Someone else (an *executor*) must drive that state machine forward.
+没有内置运行时，没有线程池，没有事件循环。`async` 关键字是一种零成本的编译策略——它将你的函数转换为一个实现 `Future` trait 的状态机。必须有其他东西（一个*执行器*）来驱动这个状态机向前运行。
 
-### Three Key Properties of Rust Async
+### Rust 异步的三个关键特性
 
 ```mermaid
 graph LR
@@ -42,53 +42,54 @@ graph LR
     style GC fill:#e3f2fd,color:#000
 ```
 
-### No Built-In Runtime
+### 无内置运行时
 
 ```rust
-// This compiles but does NOTHING:
+// 这段代码能编译但什么都不做：
 async fn fetch_data() -> String {
     "hello".to_string()
 }
 
 fn main() {
-    let future = fetch_data(); // Creates the Future, but doesn't execute it
-    // future is just a struct sitting on the stack
-    // No output, no side effects, nothing happens
-    drop(future); // Silently dropped — work was never started
+    let future = fetch_data(); // 创建了 Future，但没有执行它
+    // future 只是一个放在栈上的结构体
+    // 没有输出，没有副作用，什么都没发生
+    drop(future); // 被静默丢弃——工作从未开始
 }
 ```
 
-Compare with C# where `Task` starts eagerly:
+对比 C# 中 `Task` 是立即启动的：
+
 ```csharp
-// C# — this immediately starts executing:
+// C# — 这会立即开始执行：
 async Task<string> FetchData() => "hello";
 
-var task = FetchData(); // Already running!
-var result = await task; // Just waits for completion
+var task = FetchData(); //已经在运行了！
+var result = await task; // 只是等待完成
 ```
 
-### Lazy Futures vs Eager Tasks
+### 惰性 Future vs 积极 Task
 
-This is the single most important mental shift:
+这是最需要转变的心态：
 
 | | C# / JavaScript / Python | Go | Rust |
 |---|---|---|---|
-| **Creation** | `Task` starts executing immediately | Goroutine starts immediately | `Future` does nothing until polled |
-| **Dropping** | Detached task continues running | Goroutine runs until return | Dropping a Future cancels it |
-| **Runtime** | Built into the language/VM | Built into the binary (M:N scheduler) | You choose (tokio, smol, etc.) |
-| **Scheduling** | Automatic (thread pool) | Automatic (GMP scheduler) | Explicit (`spawn`, `block_on`) |
-| **Cancellation** | `CancellationToken` (cooperative) | `context.Context` (cooperative) | Drop the future (immediate) |
+| **创建** | `Task` 立即开始执行 | Goroutine 立即开始执行 | `Future` 在被轮询之前什么都不做 |
+| **丢弃** | 分离的 Task 继续运行 | Goroutine 运行直到返回 | 丢弃 Future 会取消它 |
+| **运行时** | 内置于语言/VM | 内置于二进制文件中（M:N 调度器） | 自己选择（tokio、smol 等） |
+| **调度** | 自动（线程池） | 自动（GMP 调度器） | 显式（`spawn`、`block_on`） |
+| **取消** | `CancellationToken`（协作式） | `context.Context`（协作式） | 丢弃 future（立即生效） |
 
 ```rust
-// To actually RUN a future, you need an executor:
+// 要实际运行一个 future，你需要执行器：
 #[tokio::main]
 async fn main() {
-    let result = fetch_data().await; // NOW it executes
+    let result = fetch_data().await; // 现在才执行
     println!("{result}");
 }
 ```
 
-### When to Use Async (and When Not To)
+### 何时使用异步（何时不使用）
 
 ```mermaid
 graph TD
@@ -119,53 +120,51 @@ graph TD
     style MAYBE_SYNC fill:#fff3e0,color:#000
 ```
 
-**Rule of thumb**: Async is for I/O concurrency (doing many things at once while waiting), not CPU parallelism (making one thing faster). If you have 10,000 network connections, async shines. If you're crunching numbers, use `rayon` or OS threads.
+**经验法则**：异步用于 I/O 并发（在等待时同时做很多事情），而不是 CPU 并行（让一件事变得更快）。如果你有 10,000 个网络连接，异步就大放异彩。如果你是在做数值计算，使用 `rayon` 或 OS 线程。
 
-### When Async Can Be *Slower*
+### 异步何时会*更慢*
 
-Async isn't free. For low-concurrency workloads, synchronous code can outperform async:
+异步并非免费的。对于低并发工作负载，同步代码可能优于异步：
 
-| Cost | Why |
-|------|-----|
-| **State machine overhead** | Each `.await` adds an enum variant; deeply nested futures produce large, complex state machines |
-| **Dynamic dispatch** | `Box<dyn Future>` adds indirection and kills inlining |
-| **Context switching** | Cooperative scheduling still has cost — the executor must manage a task queue, wakers, and I/O registrations |
-| **Compile time** | Async code generates more complex types, slowing down compilation |
-| **Debuggability** | Stack traces through state machines are harder to read (see Ch. 12) |
+| 成本 | 原因 |
+|------|------|
+| **状态机开销** | 每个 `.await` 添加一个枚举变体；深层嵌套的 futures 产生大型复杂状态机 |
+| **动态分派** | `Box<dyn Future>` 添加了间接层，阻止了内联 |
+| **上下文切换** | 协作式调度仍有成本——执行器必须管理任务队列、waker 和 I/O 注册 |
+| **编译时间** | 异步代码生成更复杂的类型，减慢编译速度 |
+| **可调试性** | 状态机的栈追踪更难阅读（见第 12 章） |
 
-**Benchmarking guidance**: If fewer than ~10 concurrent I/O operations, profile before committing to async. A simple `std::thread::spawn` per connection scales fine to hundreds of threads on modern Linux.
+**基准测试指南**：如果少于约 10 个并发 I/O 操作，在决定使用异步之前先做性能分析。在现代 Linux 上，每个连接一个简单的 `std::thread::spawn` 可以轻松扩展到数百个线程。
 
-### Exercise: When Would You Use Async?
-
-<details>
-<summary>🏋️ Exercise (click to expand)</summary>
-
-For each scenario, decide whether async is appropriate and explain why:
-
-1. A web server handling 10,000 concurrent WebSocket connections
-2. A CLI tool that compresses a single large file
-3. A service that queries 5 different databases and merges results
-4. A game engine running a physics simulation at 60 FPS
+### 练习：何时使用异步？
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🏋️ 练习（点击展开）</summary>
 
-1. **Async** — I/O-bound with massive concurrency. Each connection spends most time waiting for data. Threads would require 10K stacks.
-2. **Sync/threads** — CPU-bound, single task. Async adds overhead with no benefit. Use `rayon` for parallel compression.
-3. **Async** — Five concurrent I/O waits. `tokio::join!` runs all five queries simultaneously.
-4. **Sync/threads** — CPU-bound, latency-sensitive. Async's cooperative scheduling could introduce frame jitter.
+对于以下每个场景，决定是否适合使用异步并解释原因：
+
+1. 一个处理 10,000 个并发 WebSocket 连接的 Web 服务器
+2. 一个压缩单个大文件的 CLI 工具
+3. 一个查询 5 个不同数据库并合并结果的服务
+4. 一个以 60 FPS 运行物理模拟的游戏引擎
+
+<details>
+<summary>🔑 答案</summary>
+
+1. **异步** — I/O 密集型且并发量巨大。每个连接大部分时间都在等待数据。线程方式需要 10K 个栈。
+2. **同步/线程** — CPU 密集型，单一任务。异步增加开销但没有好处。使用 `rayon` 进行并行压缩。
+3. **异步** — 五个并发 I/O 等待。`tokio::join!` 同时运行所有五个查询。
+4. **同步/线程** — CPU 密集型，延迟敏感。异步的协作式调度可能引入帧抖动。
 
 </details>
 </details>
 
-> **Key Takeaways — Why Async is Different**
-> - Rust futures are **lazy** — they do nothing until polled by an executor
-> - There is **no built-in runtime** — you choose (or build) your own
-> - Async is a **zero-cost compilation strategy** that produces state machines
-> - Async shines for **I/O-bound concurrency**; for CPU-bound work, use threads or rayon
+> **核心要点 — 为什么异步与众不同**
+> - Rust futures 是**惰性的**——在被执行器轮询之前什么都不做
+> - **没有内置运行时**——你自己选择（或构建）运行时
+> - 异步是一种**零成本编译策略**，生成状态机
+> - 异步在 **I/O 密集型并发**场景大放异彩；对于 CPU 密集型工作，使用线程或 rayon
 
-> **See also:** [Ch 2 — The Future Trait](ch02-the-future-trait.md) for the trait that makes this all work, [Ch 7 — Executors and Runtimes](ch07-executors-and-runtimes.md) for choosing your runtime
+> **另见：** [第 2 章 — Future Trait](ch02-the-future-trait.md) 了解使这一切工作的 trait，[第 7 章 — 执行器和运行时](ch07-executors-and-runtimes.md) 了解如何选择运行时
 
 ***
-
-

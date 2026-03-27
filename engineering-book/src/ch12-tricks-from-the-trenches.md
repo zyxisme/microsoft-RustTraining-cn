@@ -1,32 +1,30 @@
-# Tricks from the Trenches 🟡
+# 来自前线的技巧 🟡
 
-> **What you'll learn:**
-> - Battle-tested patterns that don't fit neatly into one chapter
-> - Common pitfalls and their fixes — from CI flake to binary bloat
-> - Quick-win techniques you can apply to any Rust project today
+> **你将学到：**
+> - 经过实战测试的模式，不能整齐地放入一章
+> - 常见陷阱及其修复 — 从 CI 抖动到二进制文件膨胀
+> - 今天可以应用于任何 Rust 项目的快速技巧
 >
-> **Cross-references:** Every chapter in this book — these tricks cut across all topics
+> **交叉引用：** 本书每一章 — 这些技巧贯穿所有主题
 
-This chapter collects engineering patterns that come up repeatedly in
-production Rust codebases. Each trick is self-contained — read them in
-any order.
+本章收集了在生产 Rust 代码库中反复出现的工程模式。每个技巧都是独立的——可以按任意顺序阅读。
 
 ---
 
-### 1. The `deny(warnings)` Trap
+### 1. `deny(warnings)` 陷阱
 
-**Problem**: `#![deny(warnings)]` in source code breaks builds when Clippy
-adds new lints — your code that compiled yesterday fails today.
+**问题**：源代码中的 `#![deny(warnings)]` 在 Clippy 添加新 lint 时破坏构建 —
+昨天编译的代码今天失败。
 
-**Fix**: Use `CARGO_ENCODED_RUSTFLAGS` in CI instead of a source-level attribute:
+**修复**：在 CI 中使用 `CARGO_ENCODED_RUSTFLAGS` 而不是源级别属性：
 
 ```yaml
-# CI: treat warnings as errors without touching source
+# CI：在不触及源代码的情况下将警告视为错误
 env:
   CARGO_ENCODED_RUSTFLAGS: "-Dwarnings"
 ```
 
-Or use `[workspace.lints]` for finer control:
+或者使用 `[workspace.lints]` 进行更细粒度的控制：
 
 ```toml
 # Cargo.toml
@@ -38,33 +36,31 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 ```
 
-> See [Compile-Time Tools, Workspace Lints](ch08-compile-time-and-developer-tools.md) for the full pattern.
+> 参见[编译时工具，工作空间 Lint](ch08-compile-time-and-developer-tools.md) 了解完整模式。
 
 ---
 
-### 2. Compile Once, Test Everywhere
+### 2. 编译一次，测试到处
 
-**Problem**: `cargo test` recompiles when switching between `--lib`, `--doc`,
-and `--test` because they use different profiles.
+**问题**：`cargo test` 在 `--lib`、`--doc` 和 `--test` 之间切换时重新编译，因为它们使用不同的 profile。
 
-**Fix**: Use `cargo nextest` for unit/integration tests and run doc-tests
-separately:
+**修复**：使用 `cargo nextest` 运行单元/集成测试，单独运行 doc-tests：
 
 ```bash
-cargo nextest run --workspace        # Fast: parallel, cached
-cargo test --workspace --doc         # Doc-tests (nextest can't run these)
+cargo nextest run --workspace        # 快：并行，缓存
+cargo test --workspace --doc         # Doc-tests（nextest 无法运行这些）
 ```
 
-> See [Compile-Time Tools](ch08-compile-time-and-developer-tools.md) for `cargo-nextest` setup.
+> 参见[编译时工具](ch08-compile-time-and-developer-tools.md) 了解 `cargo-nextest` 设置。
 
 ---
 
-### 3. Feature Flag Hygiene
+### 3. 特性标志卫生性
 
-**Problem**: A library crate has `default = ["std"]` but nobody tests
-`--no-default-features`. One day an embedded user reports it doesn't compile.
+**问题**：一个库 crate 有 `default = ["std"]` 但没有人用 `--no-default-features` 测试。
+有一天嵌入式用户报告它无法编译。
 
-**Fix**: Add `cargo-hack` to CI:
+**修复**：在 CI 中添加 `cargo-hack`：
 
 ```yaml
 - name: Feature matrix
@@ -74,57 +70,52 @@ cargo test --workspace --doc         # Doc-tests (nextest can't run these)
     cargo check --all-features
 ```
 
-> See [`no_std` and Feature Verification](ch09-no-std-and-feature-verification.md) for the full pattern.
+> 参见[`no_std` 和特性验证](ch09-no-std-and-feature-verification.md) 了解完整模式。
 
 ---
 
-### 4. The Lock File Debate — Commit or Ignore?
+### 4. 锁文件辩论 — 提交还是忽略？
 
-**Rule of thumb:**
+**经验法则：**
 
-| Crate Type | Commit `Cargo.lock`? | Why |
-|------------|---------------------|-----|
-| Binary / application | **Yes** | Reproducible builds |
-| Library | **No** (`.gitignore`) | Let downstream choose versions |
-| Workspace with both | **Yes** | Binary wins |
+| Crate 类型 | 提交 `Cargo.lock`？ | 为什么 |
+|------------|---------------------|---------|
+| 二进制 / 应用程序 | **是** | 可重现构建 |
+| 库 | **否**（`.gitignore`） | 让下游选择版本 |
+| 同时包含两者的工作空间 | **是** | 二进制优先 |
 
-Add a CI check to ensure the lock file stays up-to-date:
+添加 CI 检查以确保锁文件保持最新：
 
 ```yaml
 - name: Check lock file
-  run: cargo update --locked  # Fails if Cargo.lock is stale
+  run: cargo update --locked  # 如果 Cargo.lock 过时则失败
 ```
 
 ---
 
-### 5. Debug Builds with Optimized Dependencies
+### 5. 优化依赖的 Debug 构建
 
-**Problem**: Debug builds are painfully slow because dependencies (especially
-`serde`, `regex`) aren't optimized.
+**问题**：Debug 构建很慢，因为依赖（特别是 `serde`、`regex`）没有被优化。
 
-**Fix**: Optimize deps in dev profile while keeping your code unoptimized
-for fast recompilation:
+**修复**：在 dev profile 中优化依赖，同时保持你的代码未优化以实现快速重新编译：
 
 ```toml
 # Cargo.toml
 [profile.dev.package."*"]
-opt-level = 2  # Optimize all dependencies in dev mode
+opt-level = 2  # 在 dev 模式下优化所有依赖
 ```
 
-This slows the first build slightly but makes runtime dramatically faster
-during development. Particularly impactful for database-backed services and
-parsers.
+这会稍微减慢第一次构建，但使开发期间的运行时显著更快。对于数据库支持的服务和解析器特别有效。
 
-> See [Release Profiles](ch07-release-profiles-and-binary-size.md) for per-crate profile overrides.
+> 参见[发布 Profiles](ch07-release-profiles-and-binary-size.md) 了解每个 crate 的 profile 覆盖。
 
 ---
 
-### 6. CI Cache Thrashing
+### 6. CI 缓存抖动
 
-**Problem**: `Swatinem/rust-cache@v2` saves a new cache on every PR, bloating
-storage and slowing restore times.
+**问题**：`Swatinem/rust-cache@v2` 在每个 PR 上保存新缓存，膨胀存储并减慢恢复时间。
 
-**Fix**: Only save cache from `main`, restore from anywhere:
+**修复**：只从 `main` 保存缓存，从任何地方恢复：
 
 ```yaml
 - uses: Swatinem/rust-cache@v2
@@ -132,7 +123,7 @@ storage and slowing restore times.
     save-if: ${{ github.ref == 'refs/heads/main' }}
 ```
 
-For workspaces with multiple binaries, add a `shared-key`:
+对于有多个二进制文件的工作空间，添加 `shared-key`：
 
 ```yaml
 - uses: Swatinem/rust-cache@v2
@@ -141,39 +132,36 @@ For workspaces with multiple binaries, add a `shared-key`:
     save-if: ${{ github.ref == 'refs/heads/main' }}
 ```
 
-> See [CI/CD Pipeline](ch11-putting-it-all-together-a-production-cic.md) for the full workflow.
+> 参见 [CI/CD 流水线](ch11-putting-it-all-together-a-production-cic.md) 了解完整工作流。
 
 ---
 
 ### 7. `RUSTFLAGS` vs `CARGO_ENCODED_RUSTFLAGS`
 
-**Problem**: `RUSTFLAGS="-Dwarnings"` applies to *everything* — including
-build scripts and proc-macros. A warning in `serde_derive`'s build.rs
-fails your CI.
+**问题**：`RUSTFLAGS="-Dwarnings"` 适用于*一切* — 包括构建脚本和 proc-macros。
+`serde_derive` 的 build.rs 中的警告会破坏你的 CI。
 
-**Fix**: Use `CARGO_ENCODED_RUSTFLAGS` which only applies to the top-level
-crate:
+**修复**：使用 `CARGO_ENCODED_RUSTFLAGS`，它只适用于顶层 crate：
 
 ```bash
-# BAD — breaks on third-party build script warnings
+# 糟糕 — 因第三方构建脚本警告而中断
 RUSTFLAGS="-Dwarnings" cargo build
 
-# GOOD — only affects your crate
+# 好 — 只影响你的 crate
 CARGO_ENCODED_RUSTFLAGS="-Dwarnings" cargo build
 
-# ALSO GOOD — workspace lints (Cargo.toml)
+# 同样好 — 工作空间 lint（Cargo.toml）
 [workspace.lints.rust]
 warnings = "deny"
 ```
 
 ---
 
-### 8. Reproducible Builds with `SOURCE_DATE_EPOCH`
+### 8. 使用 `SOURCE_DATE_EPOCH` 实现可重现构建
 
-**Problem**: Embedding `chrono::Utc::now()` in `build.rs` makes builds
-non-reproducible — every build produces a different binary hash.
+**问题**：在 `build.rs` 中嵌入 `chrono::Utc::now()` 使构建不可重现 — 每次构建产生不同的二进制哈希。
 
-**Fix**: Honor `SOURCE_DATE_EPOCH`:
+**修复**：尊重 `SOURCE_DATE_EPOCH`：
 
 ```rust
 // build.rs
@@ -184,49 +172,49 @@ let timestamp = std::env::var("SOURCE_DATE_EPOCH")
 println!("cargo:rustc-env=BUILD_TIMESTAMP={timestamp}");
 ```
 
-> See [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) for the full build.rs patterns.
+> 参见[构建脚本](ch01-build-scripts-buildrs-in-depth.md) 了解完整的 build.rs 模式。
 
 ---
 
-### 9. The `cargo tree` Deduplication Workflow
+### 9. `cargo tree` 去重工作流
 
-**Problem**: `cargo tree --duplicates` shows 5 versions of `syn` and 3 of
-`tokio-util`. Compile time is painful.
+**问题**：`cargo tree --duplicates` 显示 5 个版本的 `syn` 和 3 个版本的 `tokio-util`。
+编译时间很痛苦。
 
-**Fix**: Systematic deduplication:
+**修复**：系统性去重：
 
 ```bash
-# Step 1: Find duplicates
+# 步骤 1：查找重复项
 cargo tree --duplicates
 
-# Step 2: Find who pulls the old version
+# 步骤 2：找出谁拉入了旧版本
 cargo tree --invert --package syn@1.0.109
 
-# Step 3: Update the culprit
-cargo update -p serde_derive  # Might pull in syn 2.x
+# 步骤 3：更新罪魁祸首
+cargo update -p serde_derive  # 可能拉入 syn 2.x
 
-# Step 4: If no update available, pin in [patch]
+# 步骤 4：如果没有可用更新，在 [patch] 中固定
 # [patch.crates-io]
 # old-crate = { git = "...", branch = "syn2-migration" }
 
-# Step 5: Verify
-cargo tree --duplicates  # Should be shorter
+# 步骤 5：验证
+cargo tree --duplicates  # 应该更短
 ```
 
-> See [Dependency Management](ch06-dependency-management-and-supply-chain-s.md) for `cargo-deny` and supply chain security.
+> 参见[依赖管理](ch06-dependency-management-and-supply-chain-s.md) 了解 `cargo-deny` 和供应链安全。
 
 ---
 
-### 10. Pre-Push Smoke Test
+### 10. 推送前冒烟测试
 
-**Problem**: You push, CI takes 10 minutes, fails on a formatting issue.
+**问题**：你推送，CI 需要 10 分钟，在格式化问题上失败。
 
-**Fix**: Run the fast checks locally before push:
+**修复**：推送前在本地运行快速检查：
 
 ```toml
 # Makefile.toml (cargo-make)
 [tasks.pre-push]
-description = "Local smoke test before pushing"
+description = "推送前的本地冒烟测试"
 script = '''
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
@@ -235,11 +223,11 @@ cargo test --workspace --lib
 ```
 
 ```bash
-cargo make pre-push  # < 30 seconds
+cargo make pre-push  # < 30 秒
 git push
 ```
 
-Or use a git pre-push hook:
+或者使用 git pre-push hook：
 
 ```bash
 #!/bin/sh
@@ -247,73 +235,74 @@ Or use a git pre-push hook:
 cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings
 ```
 
-> See [CI/CD Pipeline](ch11-putting-it-all-together-a-production-cic.md) for `Makefile.toml` patterns.
+> 参见 [CI/CD 流水线](ch11-putting-it-all-together-a-production-cic.md) 了解 `Makefile.toml` 模式。
 
 ---
 
-### 🏋️ Exercises
+### 🏋️ 练习
 
-#### 🟢 Exercise 1: Apply Three Tricks
+#### 🟢 练习 1：应用三个技巧
 
-Pick three tricks from this chapter and apply them to an existing Rust project. Which had the biggest impact?
+从本章选择三个技巧并将它们应用到现有的 Rust 项目中。哪个影响最大？
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
-Typical high-impact combination:
+典型的高影响组合：
 
-1. **`[profile.dev.package."*"] opt-level = 2`** — Immediate improvement in dev-mode runtime (2-10× faster for parsing-heavy code)
+1. **`[profile.dev.package."*"] opt-level = 2`** — 开发模式运行时的即时改进（解析密集型代码快 2-10 倍）
 
-2. **`CARGO_ENCODED_RUSTFLAGS`** — Eliminates false CI failures from third-party warnings
+2. **`CARGO_ENCODED_RUSTFLAGS`** — 消除因第三方警告导致的虚假 CI 失败
 
-3. **`cargo-hack --each-feature`** — Usually finds at least one broken feature combination in any project with 3+ features
+3. **`cargo-hack --each-feature`** — 通常在任何有 3+ 特性的项目中找到至少一个损坏的特性组合
 
 ```bash
-# Apply trick 5:
+# 应用技巧 5：
 echo '[profile.dev.package."*"]' >> Cargo.toml
 echo 'opt-level = 2' >> Cargo.toml
 
-# Apply trick 7 in CI:
-# Replace RUSTFLAGS with CARGO_ENCODED_RUSTFLAGS
+# 在 CI 中应用技巧 7：
+# 用 CARGO_ENCODED_RUSTFLAGS 替换 RUSTFLAGS
 
-# Apply trick 3:
+# 应用技巧 3：
 cargo install cargo-hack
 cargo hack check --each-feature --no-dev-deps
 ```
 </details>
 
-#### 🟡 Exercise 2: Deduplicate Your Dependency Tree
+#### 🟡 练习 2：去重你的依赖树
 
-Run `cargo tree --duplicates` on a real project. Eliminate at least one duplicate. Measure compile-time before and after.
+在真实项目上运行 `cargo tree --duplicates`。消除至少一个重复项。测量前后的编译时间。
 
 <details>
-<summary>Solution</summary>
+<summary>解决方案</summary>
 
 ```bash
-# Before
+# 之前
 time cargo build --release 2>&1 | tail -1
-cargo tree --duplicates | wc -l  # Count duplicate lines
+cargo tree --duplicates | wc -l  # 计算重复行数
 
-# Find and fix one duplicate
+# 查找并修复一个重复项
 cargo tree --duplicates
 cargo tree --invert --package <duplicate-crate>@<old-version>
 cargo update -p <parent-crate>
 
-# After
+# 之后
 time cargo build --release 2>&1 | tail -1
-cargo tree --duplicates | wc -l  # Should be fewer
+cargo tree --duplicates | wc -l  # 应该更少
 
-# Typical result: 5-15% compile time reduction per eliminated
-# duplicate (especially for heavy crates like syn, tokio)
+# 典型结果：每个消除的重复项减少 5-15% 编译时间
+#（尤其是像 syn、tokio 这样的重 crate）
 ```
 </details>
 
-### Key Takeaways
+### 关键要点
 
-- Use `CARGO_ENCODED_RUSTFLAGS` instead of `RUSTFLAGS` to avoid breaking third-party build scripts
-- `[profile.dev.package."*"] opt-level = 2` is the single highest-impact dev experience trick
-- Cache tuning (`save-if` on main only) prevents CI cache bloat on active repositories
-- `cargo tree --duplicates` + `cargo update` is a free compile-time win — do it monthly
-- Run fast checks locally with `cargo make pre-push` to avoid CI round-trip waste
+- 使用 `CARGO_ENCODED_RUSTFLAGS` 而不是 `RUSTFLAGS` 以避免破坏第三方构建脚本
+- `[profile.dev.package."*"] opt-level = 2` 是单一最高影响的开发体验技巧
+- 缓存调优（只在 main 上 `save-if`）防止活跃仓库上的 CI 缓存膨胀
+- `cargo tree --duplicates` + `cargo update` 是免费的编译时间改进 — 每月做一次
+- 用 `cargo make pre-push` 在本地运行快速检查以避免 CI 往返浪费
 
 ---
+

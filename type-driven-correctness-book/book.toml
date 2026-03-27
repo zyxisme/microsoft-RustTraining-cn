@@ -1,5 +1,5 @@
 [book]
-title = "Type-Driven Correctness in Rust"
+title = "类型驱动的正确性"
 authors = ["Rust Training Team"]
 language = "en"
 src = "src"

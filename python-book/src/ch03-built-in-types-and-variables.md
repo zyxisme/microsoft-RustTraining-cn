@@ -1,61 +1,61 @@
-## Variables and Mutability
+## 变量和可变性
 
-> **What you'll learn:** Immutable-by-default variables, explicit `mut`, primitive numeric types vs Python's arbitrary-precision `int`,
-> `String` vs `&str` (the hardest early concept), string formatting, and Rust's required type annotations.
+> **你将学到：** 默认不可变的变量、显式 `mut`、原始数值类型 vs Python 的任意精度 `int`、
+> `String` vs `&str`（最困难的早期概念）、字符串格式化，以及 Rust 要求的类型注解。
 >
-> **Difficulty:** 🟢 Beginner
+> **难度：** 🟢 初级
 
-### Python Variable Declaration
+### Python 变量声明
 ```python
-# Python — everything is mutable, dynamically typed
-count = 0          # Mutable, type inferred as int
-count = 5          # ✅ Works
-count = "hello"    # ✅ Works — type can change! (dynamic typing)
+# Python — 一切皆可变、动态类型
+count = 0          # 可变，类型推断为 int
+count = 5          # ✅ 可以
+count = "hello"    # ✅ 可以 — 类型可以改变！（动态类型）
 
-# "Constants" are just convention:
-MAX_SIZE = 1024    # Nothing prevents MAX_SIZE = 999 later
+# "常量"只是约定：
+MAX_SIZE = 1024    # 无法阻止 MAX_SIZE = 999
 ```
 
-### Rust Variable Declaration
+### Rust 变量声明
 ```rust
-// Rust — immutable by default, statically typed
-let count = 0;           // Immutable, type inferred as i32
-// count = 5;            // ❌ Compile error: cannot assign twice to immutable variable
-// count = "hello";      // ❌ Compile error: expected integer, found &str
+// Rust — 默认不可变，静态类型
+let count = 0;           // 不可变，类型推断为 i32
+// count = 5;            // ❌ 编译错误：无法对不可变变量赋值两次
+// count = "hello";      // ❌ 编译错误：期望整数，得到 &str
 
-let mut count = 0;       // Explicitly mutable
-count = 5;               // ✅ Works
-// count = "hello";      // ❌ Still can't change type
+let mut count = 0;       // 显式可变
+count = 5;               // ✅ 可以
+// count = "hello";      // ❌ 仍然不能改变类型
 
-const MAX_SIZE: usize = 1024; // True constant — enforced by compiler
+const MAX_SIZE: usize = 1024; // 真正的常量 — 由编译器强制执行
 ```
 
-### Key Mental Shift for Python Developers
+### Python 开发者的关键思维转变
 ```rust
-// Python: variables are labels that point to objects
-// Rust: variables are named storage locations that OWN their values
+// Python：变量是指向对象的标签
+// Rust：变量是拥有其值的命名存储位置
 
-// Variable shadowing — unique to Rust, very useful
+// 变量遮蔽 — Rust 独有，非常有用
 let input = "42";              // &str
-let input = input.parse::<i32>().unwrap();  // Now it's i32 — new variable, same name
-let input = input * 2;         // Now it's 84 — another new variable
+let input = input.parse::<i32>().unwrap();  // 现在是 i32 — 新变量，同名
+let input = input * 2;         // 现在是 84 — 另一个新变量
 
-// In Python, you'd just reassign and lose the old type:
+// 在 Python 中，你可以重新赋值并丢失旧类型：
 # input = "42"
-# input = int(input)   # Same name, different type — Python allows this too
-# But in Rust, each `let` creates a genuinely new binding. The old one is gone.
+# input = int(input)   // 同名，不同类型 — Python 也允许
+// 但在 Rust 中，每次 `let` 都创建一个真正的新的绑定。旧的不复存在。
 ```
 
-### Practical Example: Counter
+### 实践示例：计数器
 ```python
-# Python version
+# Python 版本
 class Counter:
     def __init__(self):
         self.value = 0
-    
+
     def increment(self):
         self.value += 1
-    
+
     def get_value(self):
         return self.value
 
@@ -65,7 +65,7 @@ print(c.get_value())  # 1
 ```
 
 ```rust
-// Rust version
+// Rust 版本
 struct Counter {
     value: i64,
 }
@@ -75,170 +75,170 @@ impl Counter {
         Counter { value: 0 }
     }
 
-    fn increment(&mut self) {     // &mut self = I will modify this
+    fn increment(&mut self) {     // &mut self = 我要修改这个
         self.value += 1;
     }
 
-    fn get_value(&self) -> i64 {  // &self = I only read this
+    fn get_value(&self) -> i64 {  // &self = 我只读取这个
         self.value
     }
 }
 
 fn main() {
-    let mut c = Counter::new();   // Must be `mut` to call increment()
+    let mut c = Counter::new();   // 必须是 `mut` 才能调用 increment()
     c.increment();
     println!("{}", c.get_value()); // 1
 }
 ```
 
-> **Key difference**: In Rust, `&mut self` in the method signature tells you (and the
-> compiler) that `increment` modifies the counter. In Python, any method can mutate
-> anything — you have to read the code to know.
+> **关键差异**：在 Rust 中，`&mut self` 在方法签名中告诉你（和编译器）
+> `increment` 修改了计数器。在 Python 中，任何方法都可以修改任何东西 —
+> 你必须阅读代码才能知道。
 
-***
+---
 
-## Primitive Types Comparison
+## 原始类型对比
 
 ```mermaid
 flowchart LR
-    subgraph Python ["Python Types"]
-        PI["int\n(arbitrary precision)"] 
-        PF["float\n(64-bit only)"]
+    subgraph Python ["Python 类型"]
+        PI["int\n(任意精度)"]
+        PF["float\n(仅 64 位)"]
         PB["bool"]
         PS["str\n(Unicode)"]
     end
-    subgraph Rust ["Rust Types"]
+    subgraph Rust ["Rust 类型"]
         RI["i8 / i16 / i32 / i64 / i128\nu8 / u16 / u32 / u64 / u128"]
         RF["f32 / f64"]
         RB["bool"]
         RS["String / &str"]
     end
-    PI -->|"fixed-size"| RI
-    PF -->|"choose precision"| RF
-    PB -->|"same"| RB
-    PS -->|"owned vs borrowed"| RS
+    PI -->|"固定大小"| RI
+    PF -->|"选择精度"| RF
+    PB -->|"相同"| RB
+    PS -->|"拥有 vs 借用"| RS
     style Python fill:#ffeeba
     style Rust fill:#d4edda
 ```
 
-### Numeric Types
+### 数值类型
 
-| Python | Rust | Notes |
+| Python | Rust | 备注 |
 |--------|------|-------|
-| `int` (arbitrary precision) | `i8`, `i16`, `i32`, `i64`, `i128`, `isize` | Rust integers have fixed size |
-| `int` (unsigned: no separate type) | `u8`, `u16`, `u32`, `u64`, `u128`, `usize` | Explicit unsigned types |
-| `float` (64-bit IEEE 754) | `f32`, `f64` | Python only has 64-bit float |
-| `bool` | `bool` | Same concept |
-| `complex` | No built-in (use `num` crate) | Rare in systems code |
+| `int`（任意精度） | `i8`, `i16`, `i32`, `i64`, `i128`, `isize` | Rust 整数有固定大小 |
+| `int`（无符号：无单独类型） | `u8`, `u16`, `u32`, `u64`, `u128`, `usize` | 显式无符号类型 |
+| `float`（64 位 IEEE 754） | `f32`, `f64` | Python 只有 64 位 float |
+| `bool` | `bool` | 相同概念 |
+| `complex` | 无内置（使用 `num` crate） | 系统代码中罕见 |
 
 ```python
-# Python — one integer type, arbitrary precision
-x = 42                     # int — can grow to any size
-big = 2 ** 1000            # Still works — thousands of digits
-y = 3.14                   # float — always 64-bit
+# Python — 一种整数类型，任意精度
+x = 42                     # int — 可以增长到任意大小
+big = 2 ** 1000            # 仍然可以 — 千位数
+y = 3.14                   # float — 始终 64 位
 ```
 
 ```rust
-// Rust — explicit sizes, overflow is a compile/runtime error
-let x: i32 = 42;           // 32-bit signed integer
-let y: f64 = 3.14;         // 64-bit float (Python's float equivalent)
-let big: i128 = 2_i128.pow(100); // 128-bit max — no arbitrary precision
-// For arbitrary precision: use the `num-bigint` crate
+// Rust — 显式大小，溢出是编译/运行时错误
+let x: i32 = 42;           // 32 位有符号整数
+let y: f64 = 3.14;         // 64 位浮点数（Python 的 float 等价物）
+let big: i128 = 2_i128.pow(100); // 128 位上限 — 无任意精度
+// 任意精度：使用 `num-bigint` crate
 
-// Underscores for readability (like Python's 1_000_000):
-let million = 1_000_000;   // Same syntax as Python!
+// 下划线提高可读性（类似于 Python 的 1_000_000）：
+let million = 1_000_000;   // 与 Python 语法相同！
 
-// Type suffix syntax:
+// 类型后缀语法：
 let a = 42u8;              // u8
 let b = 3.14f32;           // f32
 ```
 
-### Size Types (Important!)
+### 大小类型（重要！）
 
 ```rust
-// usize and isize — pointer-sized integers, used for indexing
-let length: usize = vec![1, 2, 3].len();  // .len() returns usize
-let index: usize = 0;                     // Array indices are always usize
+// usize 和 isize — 指针大小的整数，用于索引
+let length: usize = vec![1, 2, 3].len();  // .len() 返回 usize
+let index: usize = 0;                     // 数组索引始终是 usize
 
-// In Python, len() returns int and indices are int — no distinction.
-// In Rust, mixing i32 and usize requires explicit conversion:
+// 在 Python 中，len() 返回 int，索引也是 int — 没有区别。
+// 在 Rust 中，混合 i32 和 usize 需要显式转换：
 let i: i32 = 5;
-// let item = vec[i];    // ❌ Error: expected usize, found i32
-let item = vec[i as usize]; // ✅ Explicit conversion
+// let item = vec[i];    // ❌ 错误：期望 usize，得到 i32
+let item = vec[i as usize]; // ✅ 显式转换
 ```
 
-### Type Inference
+### 类型推断
 
 ```rust
-// Rust infers types but they're FIXED — not dynamic
-let x = 42;          // Compiler infers i32 (default integer type)
-let y = 3.14;        // Compiler infers f64 (default float type)
-let s = "hello";     // Compiler infers &str (string slice)
-let v = vec![1, 2];  // Compiler infers Vec<i32>
+// Rust 推断类型但它们是固定的 — 不是动态的
+let x = 42;          // 编译器推断为 i32（默认整数类型）
+let y = 3.14;        // 编译器推断为 f64（默认浮点类型）
+let s = "hello";     // 编译器推断为 &str（字符串切片）
+let v = vec![1, 2];  // 编译器推断为 Vec<i32>
 
-// You can always be explicit:
+// 你始终可以显式指定：
 let x: i64 = 42;
 let y: f32 = 3.14;
 
-// Unlike Python, the type can NEVER change after inference:
+// 与 Python 不同，推断后类型永远不能改变：
 let x = 42;
-// x = "hello";      // ❌ Error: expected integer, found &str
+// x = "hello";      // ❌ 错误：期望整数，得到 &str
 ```
 
-***
+---
 
-## String Types: String vs &str
+## 字符串类型：String vs &str
 
-This is one of the biggest surprises for Python developers. Rust has **two** main
-string types where Python has one.
+这是对 Python 开发者最大的惊讶之一。Rust 有**两个**主要
+字符串类型，而 Python 只有一个。
 
-### Python String Handling
+### Python 字符串处理
 ```python
-# Python — one string type, immutable, reference counted
-name = "Alice"          # str — immutable, heap allocated
-greeting = f"Hello, {name}!"  # f-string formatting
-chars = list(name)      # Convert to list of characters
-upper = name.upper()    # Returns new string (immutable)
+# Python — 一种字符串类型，不可变，引用计数
+name = "Alice"          # str — 不可变，堆分配
+greeting = f"Hello, {name}!"  # f-string 格式化
+chars = list(name)      # 转换为字符列表
+upper = name.upper()    # 返回新字符串（不可变）
 ```
 
-### Rust String Types
+### Rust 字符串类型
 ```rust
-// Rust has TWO string types:
+// Rust 有两种字符串类型：
 
-// 1. &str (string slice) — borrowed, immutable, like a "view" into string data
-let name: &str = "Alice";           // Points to string data in the binary
-                                     // Closest to Python's str, but it's a REFERENCE
+// 1. &str（字符串切片）— 借用，不可变，像字符串数据的"视图"
+let name: &str = "Alice";           // 指向二进制中的字符串数据
+                                     // 最接近 Python 的 str，但它是一个引用
 
-// 2. String (owned string) — heap-allocated, growable, owned
-let mut greeting = String::from("Hello, ");  // Owned, can be modified
+// 2. String（拥有的字符串）— 堆分配，可增长，拥有
+let mut greeting = String::from("Hello, ");  // 拥有的，可以修改
 greeting.push_str(name);
 greeting.push('!');
-// greeting is now "Hello, Alice!"
+// greeting 现在是 "Hello, Alice!"
 ```
 
-### When to Use Which?
+### 何时使用哪个？
 
 ```rust
-// Think of it like this:
-// &str  = "I'm looking at a string someone else owns"  (read-only view)
-// String = "I own this string and can modify it"        (owned data)
+// 可以这样理解：
+// &str  = "我正在查看别人拥有的字符串"  （只读视图）
+// String = "我拥有这个字符串并可以修改它"        （拥有的数据）
 
-// Function parameters: prefer &str (accepts both types)
-fn greet(name: &str) -> String {          // accepts &str AND &String
-    format!("Hello, {}!", name)           // format! creates a new String
+// 函数参数：优先使用 &str（接受两种类型）
+fn greet(name: &str) -> String {          // 接受 &str 和 &String
+    format!("Hello, {}!", name)           // format! 创建新的 String
 }
 
-let s1 = "world";                         // &str literal
+let s1 = "world";                         // &str 字面量
 let s2 = String::from("Rust");            // String
 
-greet(s1);      // ✅ &str works directly
-greet(&s2);     // ✅ &String auto-converts to &str (Deref coercion)
+greet(s1);      // ✅ &str 直接可用
+greet(&s2);     // ✅ &String 自动转换为 &str（Deref 强制转换）
 ```
 
-### Practical Examples
+### 实践示例
 
 ```python
-# Python string operations
+# Python 字符串操作
 name = "alice"
 upper = name.upper()               # "ALICE"
 contains = "lic" in name           # True
@@ -249,174 +249,174 @@ replaced = name.replace("a", "A") # "Alice"
 ```
 
 ```rust
-// Rust equivalents
+// Rust 等价物
 let name = "alice";
-let upper = name.to_uppercase();           // String — new allocation
+let upper = name.to_uppercase();           // String — 新分配
 let contains = name.contains("lic");       // bool
 let parts: Vec<&str> = "a,b,c".split(',').collect();  // Vec<&str>
 let joined = ["a", "b", "c"].join("-");    // String
-let stripped = "  hello  ".trim();         // &str — no allocation!
+let stripped = "  hello  ".trim();         // &str — 无分配！
 let replaced = name.replace("a", "A");     // String
 
-// Key insight: some operations return &str (no allocation), others return String.
-// .trim() returns a slice of the original — efficient!
-// .to_uppercase() must create a new String — allocation required.
+// 关键见解：一些操作返回 &str（无分配），其他返回 String。
+// .trim() 返回原始字符串的切片 — 高效！
+// .to_uppercase() 必须创建新的 String — 需要分配。
 ```
 
-### Python Developers: Think of it This Way
+### Python 开发者：可以这样理解
 
 ```text
-Python str     ≈ Rust &str     (you usually read strings)
-Python str     ≈ Rust String   (when you need to own/modify)
+Python str     ≈ Rust &str     （你通常读取字符串）
+Python str     ≈ Rust String   （当你需要拥有/修改时）
 
-Rule of thumb:
-- Function parameters → use &str (most flexible)
-- Struct fields       → use String (struct owns its data)
-- Return values       → use String (caller needs to own it)
-- String literals     → automatically &str
+经验法则：
+- 函数参数 → 使用 &str（最灵活）
+- 结构体字段 → 使用 String（结构体拥有其数据）
+- 返回值 → 使用 String（调用者需要拥有它）
+- 字符串字面量 → 自动为 &str
 ```
 
-***
+---
 
-## Printing and String Formatting
+## 打印和字符串格式化
 
-### Basic Output
+### 基本输出
 ```python
 # Python
 print("Hello, World!")
-print("Name:", name, "Age:", age)    # Space-separated
+print("Name:", name, "Age:", age)    # 空格分隔
 print(f"Name: {name}, Age: {age}")   # f-string
 ```
 
 ```rust
 // Rust
 println!("Hello, World!");
-println!("Name: {} Age: {}", name, age);    // Positional {}
-println!("Name: {name}, Age: {age}");       // Inline variables (Rust 1.58+, like f-strings!)
+println!("Name: {} Age: {}", name, age);    // 位置 {}
+println!("Name: {name}, Age: {age}");       // 内联变量（Rust 1.58+，像 f-string！）
 ```
 
-### Format Specifiers
+### 格式说明符
 ```python
-# Python formatting
-print(f"{3.14159:.2f}")          # "3.14" — 2 decimal places
-print(f"{42:05d}")               # "00042" — zero-padded
-print(f"{255:#x}")               # "0xff" — hex
-print(f"{42:>10}")               # "        42" — right-aligned
-print(f"{'left':<10}|")          # "left      |" — left-aligned
+# Python 格式化
+print(f"{3.14159:.2f}")          # "3.14" — 2 位小数
+print(f"{42:05d}")               # "00042" — 零填充
+print(f"{255:#x}")               # "0xff" — 十六进制
+print(f"{42:>10}")               # "        42" — 右对齐
+print(f"{'left':<10}|")          # "left      |" — 左对齐
 ```
 
 ```rust
-// Rust formatting (very similar to Python!)
-println!("{:.2}", 3.14159);         // "3.14" — 2 decimal places
-println!("{:05}", 42);              // "00042" — zero-padded
-println!("{:#x}", 255);             // "0xff" — hex
-println!("{:>10}", 42);             // "        42" — right-aligned
-println!("{:<10}|", "left");        // "left      |" — left-aligned
+// Rust 格式化（与 Python 非常相似！）
+println!("{:.2}", 3.14159);         // "3.14" — 2 位小数
+println!("{:05}", 42);              // "00042" — 零填充
+println!("{:#x}", 255);             // "0xff" — 十六进制
+println!("{:>10}", 42);             // "        42" — 右对齐
+println!("{:<10}|", "left");        // "left      |" — 左对齐
 ```
 
-### Debug Printing
+### 调试打印
 ```python
-# Python — repr() and pprint
+# Python — repr() 和 pprint
 print(repr([1, 2, 3]))             # "[1, 2, 3]"
 from pprint import pprint
-pprint({"key": [1, 2, 3]})         # Pretty-printed
+pprint({"key": [1, 2, 3]})         # 漂亮打印
 ```
 
 ```rust
-// Rust — {:?} and {:#?}
-println!("{:?}", vec![1, 2, 3]);       // "[1, 2, 3]" — Debug format
-println!("{:#?}", vec![1, 2, 3]);      // Pretty-printed Debug format
+// Rust — {:?} 和 {:#?}
+println!("{:?}", vec![1, 2, 3]);       // "[1, 2, 3]" — 调试格式
+println!("{:#?}", vec![1, 2, 3]);      // 漂亮打印的调试格式
 
-// To make your types printable, derive Debug:
+// 要使你的类型可打印，派生 Debug：
 #[derive(Debug)]
 struct Point { x: f64, y: f64 }
 
 let p = Point { x: 1.0, y: 2.0 };
 println!("{:?}", p);                   // "Point { x: 1.0, y: 2.0 }"
-println!("{p:?}");                     // Same, with inline syntax
+println!("{p:?}");                     // 相同，使用内联语法
 ```
 
-### Quick Reference
+### 快速参考
 
-| Python | Rust | Notes |
+| Python | Rust | 备注 |
 |--------|------|-------|
-| `print(x)` | `println!("{}", x)` or `println!("{x}")` | Display format |
-| `print(repr(x))` | `println!("{:?}", x)` | Debug format |
-| `f"Hello {name}"` | `format!("Hello {name}")` | Returns String |
-| `print(x, end="")` | `print!("{x}")` | No newline (`print!` vs `println!`) |
-| `print(x, file=sys.stderr)` | `eprintln!("{x}")` | Print to stderr |
-| `sys.stdout.write(s)` | `print!("{s}")` | No newline |
+| `print(x)` | `println!("{}", x)` 或 `println!("{x}")` | 显示格式 |
+| `print(repr(x))` | `println!("{:?}", x)` | 调试格式 |
+| `f"Hello {name}"` | `format!("Hello {name}")` | 返回 String |
+| `print(x, end="")` | `print!("{x}")` | 无换行（`print!` vs `println!`） |
+| `print(x, file=sys.stderr)` | `eprintln!("{x}")` | 打印到 stderr |
+| `sys.stdout.write(s)` | `print!("{s}")` | 无换行 |
 
-***
+---
 
-## Type Annotations: Optional vs Required
+## 类型注解：可选 vs 必需
 
-### Python Type Hints (Optional, Not Enforced)
+### Python 类型提示（可选，不强制执行）
 ```python
-# Python — type hints are documentation, not enforcement
+# Python — 类型提示是文档，不是强制执行
 def add(a: int, b: int) -> int:
     return a + b
 
 add(1, 2)         # ✅
-add("a", "b")     # ✅ Python doesn't care — returns "ab"
-add(1, "2")       # ✅ Until it crashes at runtime: TypeError
+add("a", "b")     # ✅ Python 不在乎 — 返回 "ab"
+add(1, "2")       # ✅ 直到运行时才崩溃：TypeError
 
-# Union types, Optional
+# 联合类型、Optional
 def find(key: str) -> int | None:
     ...
 
-# Generic types
+# 泛型类型
 def first(items: list[int]) -> int | None:
     return items[0] if items else None
 
-# Type aliases
+# 类型别名
 UserId = int
 Mapping = dict[str, list[int]]
 ```
 
-### Rust Type Declarations (Required, Compiler-Enforced)
+### Rust 类型声明（必需，编译器强制执行）
 ```rust
-// Rust — types are enforced. Always. No exceptions.
+// Rust — 类型被强制执行。始终。没有例外。
 fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
 add(1, 2);         // ✅
-// add("a", "b");  // ❌ Compile error: expected i32, found &str
+// add("a", "b");  // ❌ 编译错误：期望 i32，得到 &str
 
-// Optional values use Option<T>
+// 可选值使用 Option<T>
 fn find(key: &str) -> Option<i32> {
-    // Returns Some(value) or None
+    // 返回 Some(value) 或 None
     Some(42)
 }
 
-// Generic types
+// 泛型类型
 fn first(items: &[i32]) -> Option<i32> {
     items.first().copied()
 }
 
-// Type aliases
+// 类型别名
 type UserId = i64;
 type Mapping = HashMap<String, Vec<i32>>;
 ```
 
-> **Key insight**: In Python, type hints help your IDE and mypy but don't affect runtime.
-> In Rust, types ARE the program — the compiler uses them to guarantee memory safety,
-> prevent data races, and eliminate null pointer errors.
+> **关键见解**：在 Python 中，类型提示帮助你的 IDE 和 mypy 但不影响运行时。
+> 在 Rust 中，类型就是程序 — 编译器使用它们来保证内存安全、
+> 防止数据竞争和消除空指针错误。
 >
-> 📌 **See also**: [Ch. 6 — Enums and Pattern Matching](ch06-enums-and-pattern-matching.md) shows how Rust's type system replaces Python's `Union` types and `isinstance()` checks.
+> 📌 **另请参阅**：[第 6 章 — 枚举和模式匹配](ch06-enums-and-pattern-matching.md) 展示了 Rust 的类型系统如何替代 Python 的 `Union` 类型和 `isinstance()` 检查。
 
 ---
 
-## Exercises
+## 练习
 
 <details>
-<summary><strong>🏋️ Exercise: Temperature Converter</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：温度转换器</strong>（点击展开）</summary>
 
-**Challenge**: Write a function `celsius_to_fahrenheit(c: f64) -> f64` and a function `classify(temp_f: f64) -> &'static str` that returns "cold", "mild", or "hot" based on thresholds. Print the result for 0, 20, and 35 degrees Celsius. Use string formatting.
+**挑战**：编写函数 `celsius_to_fahrenheit(c: f64) -> f64` 和函数 `classify(temp_f: f64) -> &'static str`，根据阈值返回 "cold"、"mild" 或 "hot"。打印 0、20 和 35 摄氏度的结果。使用字符串格式化。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 fn celsius_to_fahrenheit(c: f64) -> f64 {
@@ -437,11 +437,9 @@ fn main() {
 }
 ```
 
-**Key takeaway**: Rust requires explicit `f64` (no implicit int→float), `for` iterates over arrays directly (no `range()`), and `if/else` blocks are expressions.
+**关键收获**：Rust 需要显式 `f64`（无隐式 int→float），`for` 直接迭代数组（无 `range()`），而 `if/else` 块是表达式。
 
 </details>
 </details>
 
 ***
-
-

@@ -1,32 +1,32 @@
-## Capstone Project: Build a CLI Task Manager
+## 终极项目：构建 CLI 任务管理器
 
-> **What you'll learn:** Tie together everything from the course by building a complete Rust CLI application
-> that a Python developer would typically write with `argparse` + `json` + `pathlib`.
+> **你将学到：** 通过构建一个完整的 Rust CLI 应用程序来串联课程中的所有内容，
+> 这个应用通常是 Python 开发者用 `argparse` + `json` + `pathlib` 来写的。
 >
-> **Difficulty:** 🔴 Advanced
+> **难度：** 🔴 高级
 
-This capstone project exercises concepts from every major chapter:
-- **Ch. 3**: Types and variables (structs, enums)
-- **Ch. 5**: Collections (`Vec`, `HashMap`)
-- **Ch. 6**: Enums and pattern matching (task status, commands)
-- **Ch. 7**: Ownership and borrowing (passing references)
-- **Ch. 9**: Error handling (`Result`, `?`, custom errors)
-- **Ch. 10**: Traits (`Display`, `FromStr`)
-- **Ch. 11**: Type conversions (`From`, `TryFrom`)
-- **Ch. 12**: Iterators and closures (filtering, mapping)
-- **Ch. 8**: Modules (organized project structure)
+这个终极项目涵盖了每个主要章节的概念：
+- **第 3 章**：类型和变量（结构体、枚举）
+- **第 5 章**：集合（`Vec`、`HashMap`）
+- **第 6 章**：枚举和模式匹配（任务状态、命令）
+- **第 7 章**：所有权和借用（传递引用）
+- **第 9 章**：错误处理（`Result`、`?`、自定义错误）
+- **第 10 章**：Trait（`Display`、`FromStr`）
+- **第 11 章**：类型转换（`From`、`TryFrom`）
+- **第 12 章**：迭代器和闭包（过滤、映射）
+- **第 8 章**：模块（项目结构组织）
 
 ***
 
-## The Project: `rustdo`
+## 项目：`rustdo`
 
-A command-line task manager (like Python's `todo.txt` tools) that stores tasks in a JSON file.
+一个命令行任务管理器（类似 Python 的 `todo.txt` 工具），将任务存储在 JSON 文件中。
 
-### Python Equivalent (what you'd write in Python)
+### Python 版等价实现（你在 Python 中会怎么写）
 
 ```python
 #!/usr/bin/env python3
-"""A simple CLI task manager — the Python version."""
+"""一个简单的 CLI 任务管理器 — Python 版。"""
 import json
 import sys
 from pathlib import Path
@@ -57,17 +57,17 @@ def load_tasks() -> list[Task]:
 def save_tasks(tasks: list[Task]):
     TASK_FILE.write_text(json.dumps([t.__dict__ for t in tasks], indent=2))
 
-# Commands: add, list, done, remove, stats
-# ... (you know how this goes in Python)
+# 命令：add, list, done, remove, stats
+# ...（你知道用 Python 怎么写）
 ```
 
-### Your Rust Implementation
+### 你的 Rust 实现
 
-Build this step-by-step. Each step maps to concepts from specific chapters.
+一步一步构建。每个步骤对应特定章节的概念。
 
 ***
 
-## Step 1: Define the Data Model (Ch. 3, 6, 10, 11)
+## 步骤 1：定义数据模型（第 3、6、10、11 章）
 
 ```rust
 // src/task.rs
@@ -76,7 +76,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use chrono::Local;
 
-/// Task priority — maps to Python's Priority(Enum)
+/// 任务优先级 — 对应 Python 的 Priority(Enum)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Priority {
@@ -85,7 +85,7 @@ pub enum Priority {
     High,
 }
 
-// Display trait (Python's __str__)
+// Display trait（Python 的 __str__）
 impl fmt::Display for Priority {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -96,7 +96,7 @@ impl fmt::Display for Priority {
     }
 }
 
-// FromStr trait (parsing "high" → Priority::High)
+// FromStr trait（解析 "high" → Priority::High）
 impl FromStr for Priority {
     type Err = String;
 
@@ -110,7 +110,7 @@ impl FromStr for Priority {
     }
 }
 
-/// A single task — maps to Python's Task class
+/// 单个任务 — 对应 Python 的 Task 类
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: u32,
@@ -145,11 +145,11 @@ impl fmt::Display for Task {
 }
 ```
 
-> **Python comparison**: In Python you'd use `@dataclass` + `Enum`. In Rust, `struct` + `enum` + `derive` macros give you serialization, display, and parsing for free.
+> **Python 对比**：在 Python 中你会用 `@dataclass` + `Enum`。在 Rust 中，`struct` + `enum` + `derive` 宏让你免费获得序列化、显示和解析能力。
 
 ***
 
-## Step 2: Storage Layer (Ch. 9, 7)
+## 步骤 2：存储层（第 9、7 章）
 
 ```rust
 // src/storage.rs
@@ -157,24 +157,24 @@ use std::fs;
 use std::path::PathBuf;
 use crate::task::Task;
 
-/// Get the path to the task file (~/.rustdo.json)
+/// 获取任务文件路径（~/.rustdo.json）
 fn task_file_path() -> PathBuf {
     let home = dirs::home_dir().expect("Could not determine home directory");
     home.join(".rustdo.json")
 }
 
-/// Load tasks from disk — returns empty Vec if file doesn't exist
+/// 从磁盘加载任务 — 如果文件不存在返回空 Vec
 pub fn load_tasks() -> Result<Vec<Task>, Box<dyn std::error::Error>> {
     let path = task_file_path();
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(&path)?;  // ? propagates io::Error
-    let tasks: Vec<Task> = serde_json::from_str(&content)?;  // ? propagates serde error
+    let content = fs::read_to_string(&path)?;  // ? 传播 io::Error
+    let tasks: Vec<Task> = serde_json::from_str(&content)?;  // ? 传播 serde 错误
     Ok(tasks)
 }
 
-/// Save tasks to disk
+/// 保存任务到磁盘
 pub fn save_tasks(tasks: &[Task]) -> Result<(), Box<dyn std::error::Error>> {
     let path = task_file_path();
     let json = serde_json::to_string_pretty(tasks)?;
@@ -183,17 +183,17 @@ pub fn save_tasks(tasks: &[Task]) -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> **Python comparison**: Python uses `Path.read_text()` + `json.loads()`. Rust uses `fs::read_to_string()` + `serde_json::from_str()`. Note the `?` — every error is explicit and propagated.
+> **Python 对比**：Python 使用 `Path.read_text()` + `json.loads()`。Rust 使用 `fs::read_to_string()` + `serde_json::from_str()`。注意 `?` — 每个错误都是显式传播的。
 
 ***
 
-## Step 3: Command Enum (Ch. 6)
+## 步骤 3：命令枚举（第 6 章）
 
 ```rust
 // src/command.rs
 use crate::task::Priority;
 
-/// All possible commands — one enum variant per action
+/// 所有可能的命令 — 每个动作一个枚举变体
 pub enum Command {
     Add { title: String, priority: Priority },
     List { show_done: bool },
@@ -204,8 +204,8 @@ pub enum Command {
 }
 
 impl Command {
-    /// Parse command-line arguments into a Command
-    /// (In production, you'd use `clap` — this is educational)
+    /// 将命令行参数解析为 Command
+    /// （生产环境你会用 `clap` — 这是教学目的）
     pub fn parse(args: &[String]) -> Result<Self, String> {
         match args.first().map(|s| s.as_str()) {
             Some("add") => {
@@ -244,11 +244,11 @@ impl Command {
 }
 ```
 
-> **Python comparison**: Python uses `argparse` or `click`. This hand-rolled parser shows how `match` on enum-like patterns replaces Python's if/elif chains. For real projects, use the `clap` crate.
+> **Python 对比**：Python 使用 `argparse` 或 `click`。这个手写的解析器展示了如何用 `match` 处理类似枚举的模式来替代 Python 的 if/elif 链。对于真实项目，使用 `clap` crate。
 
 ***
 
-## Step 4: Business Logic (Ch. 5, 12, 7)
+## 步骤 4：业务逻辑（第 5、12、7 章）
 
 ```rust
 // src/actions.rs
@@ -268,7 +268,7 @@ pub fn add_task(title: String, priority: Priority) -> Result<(), Box<dyn std::er
 pub fn list_tasks(show_done: bool) -> Result<(), Box<dyn std::error::Error>> {
     let tasks = storage::load_tasks()?;
     let filtered: Vec<&Task> = tasks.iter()
-        .filter(|t| show_done || !t.done)   // Iterator + closure (Ch. 12)
+        .filter(|t| show_done || !t.done)   // 迭代器 + 闭包（第 12 章）
         .collect();
 
     if filtered.is_empty() {
@@ -277,7 +277,7 @@ pub fn list_tasks(show_done: bool) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for task in &filtered {
-        println!("  {task}");   // Uses Display trait (Ch. 10)
+        println!("  {task}");   // 使用 Display trait（第 10 章）
     }
     println!("\n{} task(s) shown", filtered.len());
     Ok(())
@@ -286,7 +286,7 @@ pub fn list_tasks(show_done: bool) -> Result<(), Box<dyn std::error::Error>> {
 pub fn complete_task(id: u32) -> Result<(), Box<dyn std::error::Error>> {
     let mut tasks = storage::load_tasks()?;
     let task = tasks.iter_mut()
-        .find(|t| t.id == id)                // Iterator::find (Ch. 12)
+        .find(|t| t.id == id)                // 迭代器::find（第 12 章）
         .ok_or(format!("No task with id {id}"))?;
     task.done = true;
     println!("Completed: {task}");
@@ -297,7 +297,7 @@ pub fn complete_task(id: u32) -> Result<(), Box<dyn std::error::Error>> {
 pub fn remove_task(id: u32) -> Result<(), Box<dyn std::error::Error>> {
     let mut tasks = storage::load_tasks()?;
     let len_before = tasks.len();
-    tasks.retain(|t| t.id != id);            // Vec::retain (Ch. 5)
+    tasks.retain(|t| t.id != id);            // Vec::retain（第 5 章）
     if tasks.len() == len_before {
         return Err(format!("No task with id {id}").into());
     }
@@ -312,7 +312,7 @@ pub fn show_stats() -> Result<(), Box<dyn std::error::Error>> {
     let done = tasks.iter().filter(|t| t.done).count();
     let pending = total - done;
 
-    // Group by priority using iterators (Ch. 12)
+    // 使用迭代器按优先级分组（第 12 章）
     let high = tasks.iter().filter(|t| !t.done && t.priority == Priority::High).count();
     let medium = tasks.iter().filter(|t| !t.done && t.priority == Priority::Medium).count();
     let low = tasks.iter().filter(|t| !t.done && t.priority == Priority::Low).count();
@@ -328,11 +328,11 @@ pub fn show_stats() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> **Key Rust patterns used**: `iter().map().max()`, `iter().filter().collect()`, `iter_mut().find()`, `retain()`, `iter().filter().count()`. These replace Python's list comprehensions, `next(x for x in ...)`, and `Counter`.
+> **使用的关键 Rust 模式**：`iter().map().max()`、`iter().filter().collect()`、`iter_mut().find()`、`retain()`、`iter().filter().count()`。这些替代了 Python 的列表推导式、`next(x for x in ...)` 和 `Counter`。
 
 ***
 
-## Step 5: Wire It Together (Ch. 8)
+## 步骤 5：连接一切（第 8 章）
 
 ```rust
 // src/main.rs
@@ -384,10 +384,10 @@ fn print_help() {
 
 ```mermaid
 graph TD
-    CLI["main.rs<br/>(CLI entry)"] --> CMD["command.rs<br/>(parse args)"]
-    CMD --> ACT["actions.rs<br/>(business logic)"]
-    ACT --> STORE["storage.rs<br/>(JSON persistence)"]
-    ACT --> TASK["task.rs<br/>(data model)"]
+    CLI["main.rs<br/>(CLI 入口)"] --> CMD["command.rs<br/>(解析参数)"]
+    CMD --> ACT["actions.rs<br/>(业务逻辑)"]
+    ACT --> STORE["storage.rs<br/>(JSON 持久化)"]
+    ACT --> TASK["task.rs<br/>(数据模型)"]
     STORE --> TASK
     style CLI fill:#d4edda
     style CMD fill:#fff3cd
@@ -398,7 +398,7 @@ graph TD
 
 ***
 
-## Step 6: Cargo.toml Dependencies
+## 步骤 6：Cargo.toml 依赖
 
 ```toml
 [package]
@@ -413,14 +413,14 @@ chrono = "0.4"
 dirs = "5"
 ```
 
-> **Python equivalent**: This is your `pyproject.toml` `[project.dependencies]`. `cargo add serde serde_json chrono dirs` is like `pip install`.
+> **Python 等价物**：这是你的 `pyproject.toml` `[project.dependencies]`。`cargo add serde serde_json chrono dirs` 类似于 `pip install`。
 
 ***
 
-## Step 7: Tests (Ch. 14)
+## 步骤 7：测试（第 14 章）
 
 ```rust
-// src/task.rs — add at the bottom
+// src/task.rs — 在底部添加
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,7 +439,7 @@ mod tests {
         let display = format!("{task}");
         assert!(display.contains("Write Rust"));
         assert!(display.contains("🔴"));
-        assert!(display.contains("⬜")); // Not done yet
+        assert!(display.contains("⬜")); // 尚未完成
     }
 
     #[test]
@@ -453,15 +453,15 @@ mod tests {
 }
 ```
 
-> **Python equivalent**: `pytest` tests. Run with `cargo test` instead of `pytest`. No test discovery magic needed — `#[test]` marks test functions explicitly.
+> **Python 等价物**：`pytest` 测试。用 `cargo test` 而不是 `pytest` 运行。不需要测试发现魔法 — `#[test]` 显式标记测试函数。
 
 ***
 
-## Stretch Goals
+## 扩展目标
 
-Once you have the basic version working, try these enhancements:
+基本版本工作后，尝试这些增强：
 
-1. **Add `clap` for argument parsing** — Replace the hand-rolled parser with `clap`'s derive macros:
+1. **添加 `clap` 进行参数解析** — 用 `clap` 的派生宏替换手写解析器：
    ```rust
    #[derive(Parser)]
    enum Command {
@@ -473,31 +473,31 @@ Once you have the basic version working, try these enhancements:
    }
    ```
 
-2. **Add colored output** — Use the `colored` crate for terminal colors (like Python's `colorama`).
+2. **添加彩色输出** — 使用 `colored` crate 实现终端颜色（类似 Python 的 `colorama`）。
 
-3. **Add due dates** — Add an `Option<NaiveDate>` field and filter overdue tasks.
+3. **添加截止日期** — 添加 `Option<NaiveDate>` 字段并过滤过期任务。
 
-4. **Add tags/categories** — Use `Vec<String>` for tags and filter with `.iter().any()`.
+4. **添加标签/类别** — 使用 `Vec<String>` 存储标签并用 `.iter().any()` 过滤。
 
-5. **Make it a library + binary** — Split into `lib.rs` + `main.rs` so the logic is reusable (Ch. 8 module pattern).
+5. **做成库 + 二进制** — 拆分为 `lib.rs` + `main.rs`，使逻辑可复用（第 8 章模块模式）。
 
 ***
 
-## What You Practiced
+## 你练习了什么
 
-| Chapter | Concept | Where It Appeared |
-|---------|---------|-------------------|
-| Ch. 3 | Types and variables | `Task` struct fields, `u32`, `String`, `bool` |
-| Ch. 5 | Collections | `Vec<Task>`, `retain()`, `push()` |
-| Ch. 6 | Enums + match | `Priority`, `Command`, exhaustive matching |
-| Ch. 7 | Ownership + borrowing | `&[Task]` vs `Vec<Task>`, `&mut` for completion |
-| Ch. 8 | Modules | `mod task; mod storage; mod command; mod actions;` |
-| Ch. 9 | Error handling | `Result<T, E>`, `?` operator, `.ok_or()` |
-| Ch. 10 | Traits | `Display`, `FromStr`, `Serialize`, `Deserialize` |
-| Ch. 11 | From/Into | `FromStr` for Priority, `.into()` for error conversion |
-| Ch. 12 | Iterators | `filter`, `map`, `find`, `count`, `collect` |
-| Ch. 14 | Testing | `#[test]`, `#[cfg(test)]`, assertion macros |
+| 章节 | 概念 | 出现位置 |
+|---------|--------|-------------------|
+| 第 3 章 | 类型和变量 | `Task` 结构体字段、`u32`、`String`、`bool` |
+| 第 5 章 | 集合 | `Vec<Task>`、`retain()`、`push()` |
+| 第 6 章 | 枚举 + match | `Priority`、`Command`、穷举匹配 |
+| 第 7 章 | 所有权 + 借用 | `&[Task]` vs `Vec<Task>`、`&mut` 用于完成 |
+| 第 8 章 | 模块 | `mod task; mod storage; mod command; mod actions;` |
+| 第 9 章 | 错误处理 | `Result<T, E>`、`?` 运算符、`.ok_or()` |
+| 第 10 章 | Trait | `Display`、`FromStr`、`Serialize`、`Deserialize` |
+| 第 11 章 | From/Into | `FromStr` 用于 Priority、`.into()` 用于错误转换 |
+| 第 12 章 | 迭代器 | `filter`、`map`、`find`、`count`、`collect` |
+| 第 14 章 | 测试 | `#[test]`、`#[cfg(test)]`、断言宏 |
 
-> 🎓 **Congratulations!** If you've built this project, you've used every major Rust concept covered in this book. You're no longer a Python developer learning Rust — you're a Rust developer who also knows Python.
+> 🎓 **恭喜！** 如果你完成了这个项目，你已经使用了本书涵盖的每个主要 Rust 概念。你不再是一个学习 Rust 的 Python 开发者 — 你是一个也懂 Python 的 Rust 开发者。
 
 ***

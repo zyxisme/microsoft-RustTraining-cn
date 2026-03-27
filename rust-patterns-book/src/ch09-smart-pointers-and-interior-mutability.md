@@ -1,12 +1,12 @@
-# 8. Smart Pointers and Interior Mutability 🟡
+# 8. 智能指针与内部可变性 🟡
 
-> **What you'll learn:**
-> - Box, Rc, Arc for heap allocation and shared ownership
-> - Weak references for breaking Rc/Arc reference cycles
-> - Cell, RefCell, and Cow for interior mutability patterns
-> - Pin for self-referential types and ManuallyDrop for lifecycle control
+> **学习内容：**
+> - Box、Rc、Arc 用于堆分配和共享所有权
+> - Weak 引用用于打破 Rc/Arc 引用循环
+> - Cell、RefCell 和 Cow 用于内部可变性模式
+> - Pin 用于自引用类型，ManuallyDrop 用于生命周期控制
 
-## Box, Rc, Arc — Heap Allocation and Sharing
+## Box、Rc、Arc — 堆分配与共享
 
 ```rust
 // --- Box<T>: Single owner, heap allocation ---
@@ -47,10 +47,10 @@ let handles: Vec<_> = (0..5).map(|_| {
 for h in handles { h.join().unwrap(); }
 ```
 
-### Weak References — Breaking Reference Cycles
+### Weak 引用 — 打破引用循环
 
-`Rc` and `Arc` use reference counting, which cannot free cycles (A → B → A).
-`Weak<T>` is a non-owning handle that does **not** increment the strong count:
+`Rc` 和 `Arc` 使用引用计数，这无法释放循环（A → B → A）。
+`Weak<T>` 是一个非拥有句柄，**不会**增加强引用计数：
 
 ```rust
 use std::rc::{Rc, Weak};
@@ -78,12 +78,11 @@ if let Some(p) = child.parent.borrow().upgrade() {
 // `child.parent.upgrade()` would then return `None`.
 ```
 
-**Rule of thumb**: Use `Rc`/`Arc` for ownership edges, `Weak` for back-references
-and caches. For thread-safe code, use `Arc<T>` with `sync::Weak<T>`.
+**经验法则**：对所有权边使用 `Rc`/`Arc`，对反向引用和缓存使用 `Weak`。对于线程安全代码，对 `Arc<T>` 使用 `sync::Weak<T>`。
 
-### Cell and RefCell — Interior Mutability
+### Cell 和 RefCell — 内部可变性
 
-Sometimes you need to mutate data behind a shared (`&`) reference. Rust provides *interior mutability* with runtime borrow checking:
+有时你需要通过共享（`&`）引用来改变数据。Rust 通过运行时借用检查提供*内部可变性*：
 
 ```rust
 use std::cell::{Cell, RefCell};
@@ -129,14 +128,11 @@ impl Cache {
 }
 ```
 
-> **Cell vs RefCell**: `Cell` never panics (it copies/swaps values) but only
-> works with `Copy` types or via `swap()`/`replace()`. `RefCell` works with any
-> type but panics on double-mutable-borrow. Neither is `Sync` — for multithreaded
-> use, see `Mutex`/`RwLock`.
+> **Cell vs RefCell**：`Cell` 不会 panic（它复制/交换值）但只适用于 `Copy` 类型或通过 `swap()`/`replace()`。`RefCell` 适用于任何类型但在双重可变借用时 panic。两者都不是 `Sync`——对于多线程使用，参见 `Mutex`/`RwLock`。
 
-### Cow — Clone on Write
+### Cow — 写时复制
 
-`Cow` (Clone on Write) holds either a borrowed or owned value. It clones *only* when mutation is needed:
+`Cow`（Clone on Write）持有借用的或拥有的值。它只在需要突变时*克隆*：
 
 ```rust
 use std::borrow::Cow;
@@ -173,11 +169,9 @@ fn process(data: Cow<'_, [u8]>) {
 }
 ```
 
-#### `Cow<'_, [u8]>` for Binary Data
+#### `Cow<'_, [u8]>` 用于二进制数据
 
-`Cow` is especially useful for byte-oriented APIs where data may or may not
-need transformation (checksum insertion, padding, escaping). This avoids
-allocating a `Vec<u8>` on the common fast path:
+`Cow` 对于可能需要或不需转换的字节导向 API 特别有用（校验和插入、填充、转义）。这在常见快速路径上避免分配 `Vec<u8>`：
 
 ```rust
 use std::borrow::Cow;
@@ -197,25 +191,22 @@ let short = pad_frame(&[0xDE, 0xAD], 8);    // Owned — padded to 8 bytes
 let long  = pad_frame(&[0; 64], 8);          // Borrowed — already ≥ 8
 ```
 
-> **Tip**: Combine `Cow<[u8]>` with `bytes::Bytes` (Ch10) when you need
-> reference-counted sharing of potentially-transformed buffers.
+> **提示**：当你需要潜在转换缓冲区的引用计数共享时，将 `Cow<[u8]>` 与 `bytes::Bytes`（第 10 章）结合使用。
 
-### When to Use Which Pointer
+### 何时使用哪种指针
 
-| Pointer | Owner Count | Thread-Safe | Mutability | Use When |
-|---------|:-----------:|:-----------:|:----------:|----------|
-| `Box<T>` | 1 | ✅ (if T: Send) | Via `&mut` | Heap allocation, trait objects, recursive types |
-| `Rc<T>` | N | ❌ | None (wrap in Cell/RefCell) | Shared ownership, single thread, graphs/trees |
-| `Arc<T>` | N | ✅ | None (wrap in Mutex/RwLock) | Shared ownership across threads |
-| `Cell<T>` | — | ❌ | `.get()` / `.set()` | Interior mutability for Copy types |
-| `RefCell<T>` | — | ❌ | `.borrow()` / `.borrow_mut()` | Interior mutability for any type, single thread |
-| `Cow<'_, T>` | 0 or 1 | ✅ (if T: Send) | Clone on write | Avoid allocation when data is often unchanged |
+| 指针 | 拥有者数量 | 线程安全 | 可变性 | 何时使用 |
+|------|:---------:|:--------:|:------:|----------|
+| `Box<T>` | 1 | ✅（如果 T: Send） | 通过 `&mut` | 堆分配、trait 对象、递归类型 |
+| `Rc<T>` | N | ❌ | 无（包装在 Cell/RefCell 中） | 单线程内共享所有权、图/树 |
+| `Arc<T>` | N | ✅ | 无（包装在 Mutex/RwLock 中） | 跨线程共享所有权 |
+| `Cell<T>` | — | ❌ | `.get()` / `.set()` | Copy 类型的内部可变性 |
+| `RefCell<T>` | — | ❌ | `.borrow()` / `.borrow_mut()` | 任何类型的内部可变性，单线程 |
+| `Cow<'_, T>` | 0 或 1 | ✅（如果 T: Send） | 写时复制 | 数据经常不变时避免分配 |
 
-### Pin and Self-Referential Types
+### Pin 和自引用类型
 
-`Pin<P>` prevents a value from being moved in memory. This is essential for
-**self-referential types** — structs that contain a pointer to their own data —
-and for `Future`s, which may hold references across `.await` points.
+`Pin<P>` 防止值在内存中移动。这对于**自引用类型**——包含指向自身数据的指针的结构体——以及 `Future` 至关重要，因为它们可能在 `.await` 点之间持有引用。
 
 ```rust
 use std::pin::Pin;
@@ -263,18 +254,16 @@ fn main() {
 }
 ```
 
-**Key concepts**:
+**关键概念**：
 
-| Concept | Meaning |
-|---------|--------|
-| `Unpin` (auto-trait) | "Moving this type is safe." Most types are `Unpin` by default. |
-| `!Unpin` / `PhantomPinned` | "I have internal pointers — don't move me." |
-| `Pin<&mut T>` | A mutable reference that guarantees `T` won't move |
-| `Pin<Box<T>>` | An owned, heap-pinned value |
+| 概念 | 含义 |
+|------|------|
+| `Unpin`（自动 trait） | "移动此类型是安全的。"大多数类型默认是 `Unpin`。 |
+| `!Unpin` / `PhantomPinned` | "我有内部指针——不要移动我。" |
+| `Pin<&mut T>` | 一个可变引用，保证 `T` 不会移动 |
+| `Pin<Box<T>>` | 一个拥有的、堆固定的的值 |
 
-**Why this matters for async**: Every `async fn` desugars to a `Future` that may
-hold references across `.await` points — making it self-referential. The async
-runtime uses `Pin<&mut Future>` to guarantee the future isn't moved once polled.
+**这对 async 的意义**：每个 `async fn` 反糖化为一个 `Future`，它可能在 `.await` 点之间持有引用——使其成为自引用的。async 运行时使用 `Pin<&mut Future>` 来保证 future 在被轮询后不会移动。
 
 ```rust
 // When you write:
@@ -287,23 +276,17 @@ async fn fetch(url: &str) -> String {
 // and the runtime pins it before calling Future::poll().
 ```
 
-> **When to care about Pin**: (1) Implementing `Future` manually, (2) writing
-> async runtimes or combinators, (3) any struct with self-referential pointers.
-> For normal application code, `async/await` handles pinning transparently.
-> See the companion *Async Rust Training* for deeper coverage.
+> **何时关注 Pin**：（1）手动实现 `Future`，（2）编写 async 运行时或组合子，（3）任何带有自引用指针的结构体。对于普通应用代码，`async/await` 透明处理 pin。
+> 参见配套的 *Async Rust Training* 获取更深入的覆盖。
 >
-> **Crate alternatives**: For self-referential structs without manual `Pin`,
-> consider [`ouroboros`](https://crates.io/crates/ouroboros) or
-> [`self_cell`](https://crates.io/crates/self_cell) — they generate safe
-> wrappers with correct pinning and drop semantics.
+> **Crate 替代品**：对于没有手动 `Pin` 的自引用结构体，考虑 [`ouroboros`](https://crates.io/crates/ouroboros) 或 [`self_cell`](https://crates.io/crates/self_cell)——它们生成具有正确 pin 和 drop 语义的安全包装器。
 
-### Pin Projections — Structural Pinning
+### Pin 投影 — 结构化 Pinning
 
-When you have a `Pin<&mut MyStruct>`, you often need to access individual fields.
-**Pin projection** is the pattern for safely going from `Pin<&mut Struct>` to
-`Pin<&mut Field>` (for pinned fields) or `&mut Field` (for unpinned fields).
+当你有 `Pin<&mut MyStruct>` 时，通常需要访问各个字段。
+**Pin 投影**是从 `Pin<&mut Struct>` 安全地转到 `Pin<&mut Field>`（对于固定字段）或 `&mut Field`（对于非固定字段）的模式。
 
-#### The Problem: Field Access on Pinned Types
+#### 问题：固定类型上的字段访问
 
 ```rust
 use std::pin::Pin;
@@ -325,7 +308,7 @@ enum InternalState {
 // get a &mut to a field of a pinned value without unsafe.
 ```
 
-#### Manual Pin Projection (unsafe)
+#### 手动 Pin 投影（unsafe）
 
 ```rust
 impl MyFuture {
@@ -345,15 +328,14 @@ impl MyFuture {
 }
 ```
 
-**Structural pinning rules** — a field is "structurally pinned" if:
-1. Moving/swapping that field alone could invalidate a self-reference
-2. The struct's `Drop` impl must not move the field
-3. The struct must be `!Unpin` (enforced by `PhantomPinned` or a `!Unpin` field)
+**结构化 pinning 规则**——如果满足以下条件，字段是"结构化固定的"：
+1. 单独移动/交换该字段可能会使自引用失效
+2. 结构的 `Drop` 实现不能移动该字段
+3. 结构必须是 `!Unpin`（通过 `PhantomPinned` 或 `!Unpin` 字段强制执行）
 
-#### `pin-project` — Safe Pin Projections (Zero Unsafe)
+#### `pin-project` — 安全 Pin 投影（零 Unsafe）
 
-The `pin-project` crate generates provably correct projections at compile time,
-eliminating the need for manual `unsafe`:
+`pin-project` crate 在编译时生成可证明正确的投影，消除了手动 `unsafe` 的需要：
 
 ```rust
 use pin_project::pin_project;
@@ -387,20 +369,19 @@ impl<F: Future> Future for TimedFuture<F> {
 }
 ```
 
-#### `pin-project` vs Manual Projection
+#### `pin-project` vs 手动投影
 
-| Aspect | Manual (`unsafe`) | `pin-project` |
-|--------|-------------------|---------------|
-| Safety | You prove invariants | Compiler-verified |
-| Boilerplate | Low (but error-prone) | Zero — derive macro |
-| `Drop` interaction | Must not move pinned fields | Enforced: `#[pinned_drop]` |
-| Compile-time cost | None | Proc-macro expansion |
-| Use case | Primitives, `no_std` | Application / library code |
+| 方面 | 手动（`unsafe`） | `pin-project` |
+|------|-----------------|---------------|
+| 安全性 | 你证明不变量 | 编译器验证 |
+| 样板代码 | 低（但容易出错） | 零——派生宏 |
+| `Drop` 交互 | 不能移动固定字段 | 强制执行：`#[pinned_drop]` |
+| 编译时成本 | 无 | 过程宏展开 |
+| 使用场景 | 原语、`no_std` | 应用/库代码 |
 
-#### `#[pinned_drop]` — Drop for Pinned Types
+#### `#[pinned_drop]` — 固定类型的 Drop
 
-When a type has `#[pin]` fields, `pin-project` requires `#[pinned_drop]`
-instead of a regular `Drop` impl to prevent accidentally moving pinned fields:
+当类型有 `#[pin]` 字段时，`pin-project` 要求 `#[pinned_drop]` 而不是常规 `Drop` impl，以防止意外移动固定字段：
 
 ```rust
 use pin_project::{pin_project, pinned_drop};
@@ -425,11 +406,9 @@ impl<F> PinnedDrop for Connection<F> {
 }
 ```
 
-#### When Pin Projections Matter in Practice
+#### Pin 投影在实践中的重要性
 
-> **Note**: The diagram below uses Mermaid syntax. It renders on GitHub and in
-> tools that support Mermaid (mdBook with `mermaid` plugin, VS Code with
-> Mermaid extension). In plain Markdown viewers, you'll see the raw source.
+> **注意**：下面的图表使用 Mermaid 语法。它在 GitHub 和支持 Mermaid 的工具中渲染（带有 `mermaid` 插件的 mdBook、支持 Mermaid 扩展的 VS Code）。在纯 Markdown 查看器中，你会看到原始源代码。
 
 ```mermaid
 graph TD
@@ -438,23 +417,20 @@ graph TD
     B -->|Yes| D["Use #[pin_project] on your<br/>future struct"]
     B -->|No| E["Your future is Unpin<br/>✅ No projections needed"]
     D --> F["Mark futures/streams as #[pin]<br/>Leave data fields unpinned"]
-    
+
     style C fill:#91e5a3,color:#000
     style E fill:#91e5a3,color:#000
     style D fill:#ffa07a,color:#000
     style F fill:#ffa07a,color:#000
 ```
 
-> **Rule of thumb**: If you're wrapping another `Future` or `Stream`, use
-> `pin-project`. If you're writing application code with `async/await`, you'll
-> never need pin projections directly. See the companion
-> *Async Rust Training* for async combinator patterns that use pin projections.
+> **经验法则**：如果你要包装另一个 `Future` 或 `Stream`，使用 `pin-project`。如果你在编写带有 `async/await` 的应用代码，你永远不会直接需要 pin 投影。参见配套的 *Async Rust Training* 获取使用 pin 投影的 async 组合子模式。
 
-### Drop Ordering and ManuallyDrop
+### Drop 顺序和 ManuallyDrop
 
-Rust's drop order is deterministic but has rules worth knowing:
+Rust 的 drop 顺序是确定性的，但有值得了解的规则：
 
-#### Drop Order Rules
+#### Drop 顺序规则
 
 ```rust
 struct Label(&'static str);
@@ -474,13 +450,13 @@ fn main() {
 //   Dropping first
 ```
 
-**The three rules**:
+**三个规则**：
 
-| What | Drop Order | Rationale |
-|------|-----------|----------|
-| **Local variables** | Reverse declaration order | Later variables might reference earlier ones |
-| **Struct fields** | Declaration order (top to bottom) | Matches construction order (stable since Rust 1.0, guaranteed by [RFC 1857](https://rust-lang.github.io/rfcs/1857-stabilize-drop-order.html)) |
-| **Tuple elements** | Declaration order (left to right) | `(a, b, c)` → drop `a`, then `b`, then `c` |
+| 什么 | Drop 顺序 | 理由 |
+|------|-----------|------|
+| **局部变量** | 逆声明顺序 | 后面的变量可能引用前面的 |
+| **结构体字段** | 声明顺序（从上到下） | 匹配构造顺序（自 Rust 1.0 起稳定，由 [RFC 1857](https://rust-lang.github.io/rfcs/1857-stabilize-drop-order.html) 保证） |
+| **元组元素** | 声明顺序（从左到右） | `(a, b, c)` → drop `a`，然后 `b`，然后 `c` |
 
 ```rust
 struct Server {
@@ -492,16 +468,11 @@ struct Server {
 // This matters when fields reference each other or hold resources.
 ```
 
-> **Practical impact**: If your struct has a `JoinHandle` and a `Sender`,
-> field order determines which drops first. If the thread reads from the
-> channel, drop the `Sender` first (close the channel) so the thread exits,
-> then join the handle. Put `Sender` above `JoinHandle` in the struct.
+> **实际影响**：如果你的结构体有 `JoinHandle` 和 `Sender`，字段顺序决定哪个先 drop。如果线程从通道读取，先 drop `Sender`（关闭通道）让线程退出，然后 join 句柄。将 `Sender` 放在 `JoinHandle` 上方的结构体中。
 
-#### `ManuallyDrop<T>` — Suppressing Automatic Drop
+#### `ManuallyDrop<T>` — 抑制自动 Drop
 
-`ManuallyDrop<T>` wraps a value and prevents its destructor from running
-automatically. You take responsibility for dropping it (or intentionally
-leaking it):
+`ManuallyDrop<T>` 包装一个值并防止其析构函数自动运行。你负责drop 它（或有意泄漏它）：
 
 ```rust
 use std::mem::ManuallyDrop;
@@ -581,26 +552,24 @@ union IntOrString {
 // without a Drop impl, the union is simply leaked (no UB, just a leak).
 ```
 
-**ManuallyDrop vs `mem::forget`**:
+**ManuallyDrop vs `mem::forget`**：
 
 | | `ManuallyDrop<T>` | `mem::forget(value)` |
 |---|---|---|
-| When | Wrap at construction | Consume later |
-| Access inner | `&*md` / `&mut *md` | Value is gone |
-| Drop later | `ManuallyDrop::drop(&mut md)` | Not possible |
-| Use case | Fine-grained lifecycle control | Fire-and-forget leak |
+| 何时 | 在构造时包装 | 稍后消耗 |
+| 访问内部 | `&*md` / `&mut *md` | 值已消失 |
+| 稍后 drop | `ManuallyDrop::drop(&mut md)` | 不可能 |
+| 使用场景 | 细粒度生命周期控制 |  fire-and-forget 泄漏 |
 
-> **Rule**: Use `ManuallyDrop` in unsafe abstractions where you need to control
-> *exactly* when a destructor runs. In safe application code, you almost never
-> need it — Rust's automatic drop ordering handles things correctly.
+> **规则**：在不安全抽象中使用 `ManuallyDrop`，你需要精确控制析构函数何时运行。在安全应用代码中，你几乎不需要它——Rust 的自动 drop 顺序正确处理事情。
 
-> **Key Takeaways — Smart Pointers**
-> - `Box` for single ownership on heap; `Rc`/`Arc` for shared ownership (single-/multi-threaded)
-> - `Cell`/`RefCell` provide interior mutability; `RefCell` panics on violations at runtime
-> - `Cow` avoids allocation on the common path; `Pin` prevents moves for self-referential types
-> - Drop order: fields drop in declaration order (RFC 1857); locals drop in reverse declaration order
+> **关键要点 — 智能指针**
+> - `Box` 用于堆上的单一所有权；`Rc`/`Arc` 用于共享所有权（单线程/多线程）
+> - `Cell`/`RefCell` 提供内部可变性；`RefCell` 在运行时违规时 panic
+> - `Cow` 避免常见路径上的分配；`Pin` 阻止自引用类型的移动
+> - Drop 顺序：字段按声明顺序 drop（RFC 1857）；局部变量按逆声明顺序 drop
 
-> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for Arc + Mutex patterns. [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for PhantomData used with smart pointers.
+> **另见：** [第 6 章 — 并发](ch06-concurrency-vs-parallelism-vs-threads.md) Arc + Mutex 模式。[第 4 章 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) 与智能指针一起使用的 PhantomData。
 
 ```mermaid
 graph TD
@@ -629,12 +598,12 @@ graph TD
 
 ---
 
-### Exercise: Reference-Counted Graph ★★ (~30 min)
+### 练习：引用计数图 ★★（约 30 分钟）
 
-Build a directed graph using `Rc<RefCell<Node>>` where each node has a name and a list of children. Create a cycle (A → B → C → A) using `Weak` to break the back-edge. Verify no memory leak with `Rc::strong_count`.
+使用 `Rc<RefCell<Node>>` 构建一个有向图，其中每个节点有名称和子节点列表。使用 `Weak` 打破反向边（A → B → C → A）来创建循环。验证使用 `Rc::strong_count` 没有内存泄漏。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解答</summary>
 
 ```rust
 use std::cell::RefCell;

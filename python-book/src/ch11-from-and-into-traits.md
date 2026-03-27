@@ -1,4 +1,4 @@
-## Type Conversions in Rust
+## Rust 中的类型转换
 
 > **What you'll learn:** `From` and `Into` traits for zero-cost type conversions, `TryFrom` for fallible conversions,
 > how `impl From<A> for B` auto-generates `Into`, and string conversion patterns.

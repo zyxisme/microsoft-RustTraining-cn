@@ -1,24 +1,18 @@
-# Testing Type-Level Guarantees 🟡
+# 测试类型级保证 🟡
 
-> **What you'll learn:** How to test that invalid code *fails to compile* (trybuild), fuzz validated boundaries (proptest), verify RAII invariants, and prove zero-cost abstraction via `cargo-show-asm`.
+> **你将学到：** 如何测试无效代码 *无法编译*（trybuild）、对验证边界进行模糊测试（proptest）、验证 RAII 不变量，以及通过 `cargo-show-asm` 证明零成本抽象。
 >
-> **Cross-references:** [ch03](ch03-single-use-types-cryptographic-guarantee.md) (compile-fail for nonces), [ch07](ch07-validated-boundaries-parse-dont-validate.md) (proptest for boundaries), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (RAII for sessions)
+> **交叉引用：** [ch03](ch03-single-use-types-cryptographic-guarantee.md)（编译失败用于 nonce），[ch07](ch07-validated-boundaries-parse-dont-validate.md)（边界 proptest），[ch05](ch05-protocol-state-machines-type-state-for-r.md)（会话 RAII）
 
-## Testing Type-Level Guarantees
+## 测试类型级保证
 
-Correct-by-construction patterns shift bugs from runtime to compile time. But
-how do you **test** that invalid code actually fails to compile? And how do you
-ensure validated boundaries hold under fuzzing? This chapter covers the testing
-tools that complement type-level correctness.
+正确性构造模式将 bug 从运行时转移到编译时。但是你如何 **测试** 无效代码实际上无法编译？你如何确保验证边界在模糊测试下保持？这章涵盖了补充类型级正确性的测试工具。
 
-### Compile-Fail Tests with `trybuild`
+### 使用 `trybuild` 进行编译失败测试
 
-The [`trybuild`](https://crates.io/crates/trybuild) crate lets you assert that
-certain code **should not compile**. This is essential for maintaining type-level
-invariants across refactors — if someone accidentally adds `Clone` to your
-single-use `Nonce`, the compile-fail test catches it.
+[`trybuild`](https://crates.io/crates/trybuild) crate 让你断言某些代码 **不应该编译**。这对于在重构中维护类型级不变量至关重要——如果有人意外地将 `Clone` 添加到你的单次使用 `Nonce`，编译失败测试会捕获它。
 
-**Setup:**
+**设置：**
 
 ```toml
 # Cargo.toml
@@ -26,7 +20,7 @@ single-use `Nonce`, the compile-fail test catches it.
 trybuild = "1"
 ```
 
-**Test file (`tests/compile_fail.rs`):**
+**测试文件（`tests/compile_fail.rs`）：**
 
 ```rust,ignore
 #[test]
@@ -36,7 +30,7 @@ fn type_safety_tests() {
 }
 ```
 
-**Test case: Nonce reuse must not compile (`tests/ui/nonce_reuse.rs`):**
+**测试用例：Nonce 重用不能编译（`tests/ui/nonce_reuse.rs`）：**
 
 ```rust,ignore
 // tests/ui/nonce_reuse.rs
@@ -45,13 +39,13 @@ use my_crate::Nonce;
 fn main() {
     let nonce = Nonce::new();
     encrypt(nonce);
-    encrypt(nonce); // should fail: use of moved value
+    encrypt(nonce); // 应该失败：使用了已移动的值
 }
 
 fn encrypt(_n: Nonce) {}
 ```
 
-**Expected error (`tests/ui/nonce_reuse.stderr`):**
+**预期错误（`tests/ui/nonce_reuse.stderr`）：**
 
 ```text
 error[E0382]: use of moved value: `nonce`
@@ -65,18 +59,18 @@ error[E0382]: use of moved value: `nonce`
   |             ^^^^^ value used here after move
 ```
 
-**More compile-fail test cases per chapter:**
+**每章更多编译失败测试用例：**
 
-| Pattern (Chapter) | Test assertion | File |
+| 模式（章节） | 测试断言 | 文件 |
 |-------------------|---------------|------|
-| Single-Use Nonce (ch03) | Can't use nonce twice | `nonce_reuse.rs` |
-| Capability Token (ch04) | Can't call `admin_op()` without token | `missing_token.rs` |
-| Type-State (ch05) | Can't `send_command()` on `Session<Idle>` | `wrong_state.rs` |
-| Dimensional (ch06) | Can't add `Celsius + Rpm` | `unit_mismatch.rs` |
-| Sealed Trait (Trick 2) | External crate can't impl sealed trait | `unseal_attempt.rs` |
-| Non-Exhaustive (Trick 3) | External match without wildcard fails | `missing_wildcard.rs` |
+| 单次使用 Nonce（ch03） | 不能两次使用 nonce | `nonce_reuse.rs` |
+| 能力令牌（ch04） | 没有令牌不能调用 `admin_op()` | `missing_token.rs` |
+| 类型状态（ch05） | 不能在 `Session<Idle>` 上 `send_command()` | `wrong_state.rs` |
+| 量纲（ch06） | 不能添加 `Celsius + Rpm` | `unit_mismatch.rs` |
+| 密封 Trait（技巧 2） | 外部 crate 不能实现密封 trait | `unseal_attempt.rs` |
+| 非穷尽（技巧 3） | 外部匹配没有通配符失败 | `missing_wildcard.rs` |
 
-**CI integration:**
+**CI 集成：**
 
 ```yaml
 # .github/workflows/ci.yml
@@ -84,12 +78,9 @@ error[E0382]: use of moved value: `nonce`
   run: cargo test --test compile_fail
 ```
 
-### Property-Based Testing of Validated Boundaries
+### 验证边界的属性测试
 
-Validated boundaries (ch07) parse data once and reject invalid input. But
-how do you know your validation catches **all** invalid inputs? Property-based
-testing with [`proptest`](https://crates.io/crates/proptest) generates
-thousands of random inputs to stress the boundary:
+验证边界（ch07）解析数据一次并拒绝无效输入。但是你如何知道你的验证捕获了 **所有** 无效输入？使用 [`proptest`](https://crates.io/crates/proptest) 的属性测试生成数千个随机输入来压力测试边界：
 
 ```toml
 # Cargo.toml
@@ -100,42 +91,42 @@ proptest = "1"
 ```rust,ignore
 use proptest::prelude::*;
 
-/// From ch07: ValidFru wraps a spec-compliant FRU payload.
-/// These tests use the full ch07 ValidFru with board_area(),
-/// product_area(), and format_version() methods.
-/// Note: ch07 defines TryFrom<RawFruData>, so we wrap raw bytes first.
+/// 来自 ch07：ValidFru 包装符合规范的 FRU 有效载荷。
+/// 这些测试使用完整的 ch07 ValidFru，带有 board_area()、
+/// product_area() 和 format_version() 方法。
+/// 注意：ch07 定义了 TryFrom<RawFruData>，所以我们先包装原始字节。
 
 proptest! {
-    /// Any byte sequence that passes validation must be usable without panic.
+    /// 任何通过验证的字节序列必须可以在不 panic 的情况下使用。
     #[test]
     fn valid_fru_never_panics(data in proptest::collection::vec(any::<u8>(), 0..1024)) {
         if let Ok(fru) = ValidFru::try_from(RawFruData(data)) {
-            // These must never panic on a validated FRU
-            // (methods from ch07's ValidFru impl):
+            // 这些在验证的 FRU 上绝不能 panic
+            //（来自 ch07 的 ValidFru impl 的方法）：
             let _ = fru.format_version();
             let _ = fru.board_area();
             let _ = fru.product_area();
         }
     }
 
-    /// Round-trip: format_version is preserved through reparsing.
+    /// 往返：format_version 在重新解析后保持不变。
     #[test]
     fn fru_round_trip(data in valid_fru_strategy()) {
         let raw = RawFruData(data.clone());
         let fru = ValidFru::try_from(raw).unwrap();
         let version = fru.format_version();
-        // Re-parse the same bytes — version must be identical
+        // 重新解析相同的字节 — 版本必须相同
         let reparsed = ValidFru::try_from(RawFruData(data)).unwrap();
         prop_assert_eq!(version, reparsed.format_version());
     }
 }
 
-/// Custom strategy: generates byte vectors that satisfy the FRU spec header.
-/// The header format matches ch07's `TryFrom<RawFruData>` validation:
-///   - Byte 0: version = 0x01
-///   - Bytes 1-6: area offsets (×8 = actual byte offset)
-///   - Byte 7: checksum (sum of bytes 0-7 = 0 mod 256)
-/// The body is random but large enough for the offsets to be in-bounds.
+/// 自定义策略：生成满足 FRU 规范头部的字节向量。
+/// 头部格式匹配 ch07 的 `TryFrom<RawFruData>` 验证：
+///   - 字节 0：version = 0x01
+///   - 字节 1-6：区域偏移量（×8 = 实际字节偏移量）
+///   - 字节 7：校验和（字节 0-7 的和 = 0 mod 256）
+/// 主体是随机的，但足够大以使偏移量在范围内。
 fn valid_fru_strategy() -> impl Strategy<Value = Vec<u8>> {
     let header = vec![0x01, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00];
     proptest::collection::vec(any::<u8>(), 64..256)
@@ -149,32 +140,31 @@ fn valid_fru_strategy() -> impl Strategy<Value = Vec<u8>> {
 }
 ```
 
-**The testing pyramid for correct-by-construction code:**
+**正确性构造代码的测试金字塔：**
 
 ```text
 ┌───────────────────────────────────┐
-│    Compile-Fail Tests (trybuild)  │ ← "Invalid code must not compile"
+│    编译失败测试 (trybuild)  │ ← "无效代码必须不编译"
 ├───────────────────────────────────┤
-│  Property Tests (proptest/quickcheck) │ ← "Valid inputs never panic"
+│  属性测试 (proptest/quickcheck) │ ← "有效输入从不 panic"
 ├───────────────────────────────────┤
-│    Unit Tests (#[test])           │ ← "Specific inputs produce expected outputs"
+│    单元测试 (#[test])           │ ← "特定输入产生预期输出"
 ├───────────────────────────────────┤
-│    Type System (patterns ch02–13) │ ← "Entire classes of bugs can't exist"
+│    类型系统 (模式 ch02–13) │ ← "整类 bug 不可能存在"
 └───────────────────────────────────┘
 ```
 
-### RAII Verification
+### RAII 验证
 
-RAII (Trick 12) guarantees cleanup. To test this, verify that the `Drop` impl
-actually fires:
+RAII（技巧 12）保证清理。为了测试这一点，验证 `Drop` impl 实际触发：
 
 ```rust,ignore
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// NOTE: These tests use a global AtomicBool, so they must not run in
-// parallel with each other. Use `#[serial_test::serial]` or run with
-// `cargo test -- --test-threads=1`. Alternatively, use a per-test
-// `Arc<AtomicBool>` passed via closure to avoid the global entirely.
+// 注意：这些测试使用全局 AtomicBool，所以它们不能彼此并行运行。
+// 使用 `#[serial_test::serial]` 或用
+// `cargo test -- --test-threads=1` 运行。或者，使用每个测试的
+// 通过闭包传递的 `Arc<AtomicBool>` 以完全避免全局。
 static DROPPED: AtomicBool = AtomicBool::new(false);
 
 struct TestSession;
@@ -208,35 +198,33 @@ fn session_drops_on_panic() {
 }
 ```
 
-### Applying to Your Codebase
+### 应用到你的代码库
 
-Here's a prioritized plan for adding type-level tests to the
-workspace:
+这是向工作空间添类型级测试的优先级计划：
 
-| Crate | Test type | What to test |
+| Crate | 测试类型 | 测试什么 |
 |-------|-----------|-------------|
-| `protocol_lib` | Compile-fail | `Session<Idle>` can't `send_command()` |
-| `protocol_lib` | Property | Any byte seq → `TryFrom` either succeeds or returns Err (no panic) |
-| `thermal_diag` | Compile-fail | Can't construct `FanReading` without `HasSpi` mixin |
-| `accel_diag` | Property | GPU sensor parsing: random bytes → validated-or-rejected |
-| `config_loader` | Property | Random strings → `FromStr` for `DiagLevel` never panics |
-| `pci_topology` | Compile-fail | `Register<Width16>` can't be passed where `Width32` expected |
-| `event_handler` | Compile-fail | Audit token can't be cloned |
-| `diag_framework` | Compile-fail | `DerBuilder<Missing, _>` can't call `finish()` |
+| `protocol_lib` | 编译失败 | `Session<Idle>` 不能 `send_command()` |
+| `protocol_lib` | 属性 | 任何字节序列 → `TryFrom` 要么成功要么返回 Err（不 panic） |
+| `thermal_diag` | 编译失败 | 没有 `HasSpi` 混合不能构造 `FanReading` |
+| `accel_diag` | 属性 | GPU 传感器解析：随机字节 → 验证或拒绝 |
+| `config_loader` | 属性 | 随机字符串 → `FromStr` 用于 `DiagLevel` 从不 panic |
+| `pci_topology` | 编译失败 | `Register<Width16>` 不能在期望 `Width32` 的地方传递 |
+| `event_handler` | 编译失败 | 审计令牌不能被克隆 |
+| `diag_framework` | 编译失败 | `DerBuilder<Missing, _>` 不能调用 `finish()` |
 
-### Zero-Cost Abstraction: Proof by Assembly
+### 零成本抽象：通过汇编证明
 
-A common concern: "Do newtypes and phantom types add runtime overhead?"
-The answer is **no** — they compile to identical assembly as raw primitives.
-Here's how to verify:
+一个常见担忧："newtype 和幽灵类型会增加运行时开销吗？"
+答案是 **否** — 它们编译为与原始原语相同的汇编。以下是验证方法：
 
-**Setup:**
+**设置：**
 
 ```bash
 cargo install cargo-show-asm
 ```
 
-**Example: Newtype vs raw u32:**
+**示例：Newtype vs 原始 u32：**
 
 ```rust,ignore
 // src/lib.rs
@@ -246,27 +234,27 @@ pub struct Rpm(pub u32);
 #[derive(Clone, Copy)]
 pub struct Celsius(pub f64);
 
-// Newtype arithmetic
+// Newtype 算术
 #[inline(never)]
 pub fn add_rpm(a: Rpm, b: Rpm) -> Rpm {
     Rpm(a.0 + b.0)
 }
 
-// Raw arithmetic (for comparison)
+// 原始算术（用于比较）
 #[inline(never)]
 pub fn add_raw(a: u32, b: u32) -> u32 {
     a + b
 }
 ```
 
-**Run:**
+**运行：**
 
 ```bash
 cargo asm my_crate::add_rpm
 cargo asm my_crate::add_raw
 ```
 
-**Result — identical assembly:**
+**结果 — 相同的汇编：**
 
 ```asm
 ; add_rpm (newtype)           ; add_raw (raw u32)
@@ -275,33 +263,30 @@ my_crate::add_rpm:            my_crate::add_raw:
   ret                          ret
 ```
 
-The `Rpm` wrapper is completely erased at compile time. The same holds for
-`PhantomData<S>` (zero bytes), `ZST` tokens (zero bytes), and all other
-type-level markers used throughout this guide.
+`Rpm` 包装器在编译时完全擦除。这同样适用于 `PhantomData<S>`（零字节）、`ZST` 令牌（零字节）以及本指南中使用的所有其他类型级标记。
 
-**Verify for your own types:**
+**验证你自己的类型：**
 
 ```bash
-# Show assembly for a specific function
+# 显示特定函数的汇编
 cargo asm --lib ipmi_lib::session::execute
 
-# Show that PhantomData adds zero bytes
+# 显示 PhantomData 添加零字节
 cargo asm --lib --rust ipmi_lib::session::IpmiSession
 ```
 
-> **Key takeaway:** Every pattern in this guide has **zero runtime cost**.
-> The type system does all the work and is erased completely during compilation.
-> You get the safety of Haskell with the performance of C.
+> **关键要点：** 本指南中的每个模式都有 **零运行时成本**。
+> 类型系统完成所有工作，在编译期间完全擦除。
+> 你获得 Haskell 的安全性与 C 的性能。
 
-## Key Takeaways
+## 关键要点
 
-1. **trybuild tests that invalid code won't compile** — essential for maintaining type-level invariants across refactors.
-2. **proptest fuzzes validation boundaries** — generates thousands of random inputs to stress `TryFrom` implementations.
-3. **RAII verification tests that Drop runs** — Arc counters or mock flags prove cleanup happened.
-4. **cargo-show-asm proves zero-cost** — phantom types, ZSTs, and newtypes produce the same assembly as raw C.
-5. **Add compile-fail tests for every "impossible" state** — if someone accidentally derives `Clone` on a single-use type, the test catches it.
+1. **trybuild 测试无效代码不会编译** — 对于在重构中维护类型级不变量至关重要。
+2. **proptest 对验证边界进行模糊测试** — 生成数千个随机输入来压力测试 `TryFrom` 实现。
+3. **RAII 验证测试 Drop 运行** — Arc 计数器或模拟标志证明清理发生了。
+4. **cargo-show-asm 证明零成本** — 幽灵类型、ZST 和 newtype 产生与原始 C 相同的汇编。
+5. **为每个"不可能"状态添加编译失败测试** — 如果有人意外地在单次使用类型上派生 `Clone`，测试会捕获它。
 
 ---
 
-*End of Type-Driven Correctness in Rust*
-
+*Rust 类型驱动正确性 完*

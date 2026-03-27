@@ -1,103 +1,109 @@
+<div style="background-color: #e6f4ea; padding: 16px; border-radius: 6px; color: #000000;">
+
+**原文来源** [microsoft/rusttraining](https://github.com/microsoft/rusttraining)，由 **MiniMax-M2.7** 翻译
+
+</div>
+
 <div style="background-color: #d9d9d9; padding: 16px; border-radius: 6px; color: #000000;">
 
-**License** This project is dual-licensed under the [MIT License](LICENSE) and [Creative Commons Attribution 4.0 International (CC-BY-4.0)](LICENSE-DOCS).
+**许可证** 本项目采用 [MIT 许可证](LICENSE) 和 [知识共享署名 4.0 国际许可协议 (CC-BY-4.0)](LICENSE-DOCS) 双重许可。
 
 </div>
 
 <div style="background-color: #d9d9d9; padding: 16px; border-radius: 6px; color: #000000;">
 
-**Trademarks** This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft trademarks or logos is subject to and must follow [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general). Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship. Any use of third-party trademarks or logos are subject to those third-party's policies.
+**商标** 本项目可能包含项目、产品或服务的商标或标识。经授权使用 Microsoft 商标或标识须遵守并符合 [Microsoft 的商标与品牌指南](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general)。在本项目的修改版本中使用 Microsoft 商标或标识不得引起混淆或暗示 Microsoft 赞助。任何第三方商标或标识的使用须遵守各第三方政策。
 
 </div>
 
-# Rust Training Books
+# Rust 训练手册
 
-Seven training courses covering Rust from different programming backgrounds, plus deep-dives on async, advanced patterns, and engineering practices.
+七门训练课程，涵盖从不同编程背景学习 Rust，以及异步、进阶模式和工程实践的深度内容。
 
-This material combines original content with ideas and examples inspired by some of the best resources in the Rust ecosystem. The goal is to present an in-depth, technically accurate curriculum that weaves together knowledge scattered across books, blogs, conference talks, and video series into a cohesive, pedagogically structured experience.
+本教程结合了原创内容与 Rust 生态系统中一些优秀资源的思路和示例。目标是呈现一门深入、严谨的技术课程，将散落在书籍、博客、会议演讲和视频系列中的知识编织成连贯的、教学结构化的学习体验。
 
-> **Disclaimer:** These books are training material, not an authoritative reference. While we strive for accuracy, always verify critical details against the [official Rust documentation](https://doc.rust-lang.org/) and the [Rust Reference](https://doc.rust-lang.org/reference/).
+> **免责声明：** 这些书籍是训练材料，而非权威参考资料。虽然我们力求准确，但请始终通过 [官方 Rust 文档](https://doc.rust-lang.org/) 和 [Rust 参考](https://doc.rust-lang.org/reference/) 验证关键细节。
 
-### Inspirations & Acknowledgments
+### 参考与致谢
 
-- [**The Rust Programming Language**](https://doc.rust-lang.org/book/) — the foundation everything builds on
-- [**Jon Gjengset**](https://www.youtube.com/c/JonGjengset) — deep-dive streams on advanced Rust internals, `Crust of Rust` series
-- [**withoutboats**](https://without.boats/blog/) — async design, `Pin`, and the futures model
-- [**fasterthanlime (Amos)**](https://fasterthanli.me/) — systems programming from first principles, engaging long-form explorations
-- [**Mara Bos**](https://marabos.nl/) — *Rust Atomics and Locks*, concurrency primitives
-- [**Aleksey Kladov (matklad)**](https://matklad.github.io/) — Rust analyzer insights, API design, error handling patterns
-- [**Niko Matsakis**](https://smallcultfollowing.com/babysteps/) — language design, borrow checker internals, Polonius
-- [**Rust by Example**](https://doc.rust-lang.org/rust-by-example/) and [**Rustonomicon**](https://doc.rust-lang.org/nomicon/) — practical patterns and unsafe deep-dives
-- [**This Week in Rust**](https://this-week-in-rust.org/) — community discoveries that shaped many examples
-- …and many others in the **Rust community at large** whose blog posts, conference talks, RFCs, and forum discussions have informed this material — too numerous to list individually, but deeply appreciated
+- [**The Rust Programming Language**](https://doc.rust-lang.org/book/) — 一切的基础
+- [**Jon Gjengset**](https://www.youtube.com/c/JonGjengset) — 深入讲解 Rust 内部机理的直播，`Crust of Rust` 系列
+- [**withoutboats**](https://without.boats/blog/) — 异步设计、`Pin` 和 futures 模型
+- [**fasterthanlime (Amos)**](https://fasterthanli.me/) — 从第一性原理出发的系统编程，引人入胜的长篇探索
+- [**Mara Bos**](https://marabos.nl/) — *Rust Atomics and Locks*，并发原语
+- [**Aleksey Kladov (matklad)**](https://matklad.github.io/) — Rust analyzer 洞察、API 设计、错误处理模式
+- [**Niko Matsakis**](https://smallcultfollowing.com/babysteps/) — 语言设计、借用检查器内部机理、Polonius
+- [**Rust by Example**](https://doc.rust-lang.org/rust-by-example/) 和 [**Rustonomicon**](https://doc.rust-lang.org/nomicon/) — 实用模式和 unsafe 深度讲解
+- [**This Week in Rust**](https://this-week-in-rust.org/) — 社区发现塑造了许多示例
+- ……以及 **Rust 社区** 中众多成员的博客文章、会议演讲、RFC 和论坛讨论——人数众多无法一一列出，但深表感谢
 
-## 📖 Start Reading
+## 📖 开始阅读
 
-Pick the book that matches your background. Books are grouped by complexity so you can chart a learning path:
+选择与你背景相匹配的书籍。书籍按难度分组，方便你规划学习路径：
 
-| Level | Description |
+| 级别 | 说明 |
 |-------|-------------|
-| 🟢 **Bridge** | Learn Rust coming from another language — start here |
-| 🔵 **Deep Dive** | Focused exploration of a major Rust subsystem |
-| 🟡 **Advanced** | Patterns and techniques for experienced Rustaceans |
-| 🟣 **Expert** | Cutting-edge type-level and correctness techniques |
-| 🟤 **Practices** | Engineering, tooling, and production readiness |
+| 🟢 **桥接** | 从另一门语言学习 Rust——从这里开始 |
+| 🔵 **深度探索** | 深入探索 Rust 主要子系统 |
+| 🟡 **进阶** | 为有经验的 Rustacean 准备的模式和技巧 |
+| 🟣 **专家** | 前沿的类型级和正确性技术 |
+| 🟤 **工程实践** | 工程、工具链和生产就绪 |
 
-| Book | Level | Who it's for |
+| 书籍 | 级别 | 适用人群 |
 |------|-------|-------------|
-| [**Rust for C/C++ Programmers**](c-cpp-book/src/SUMMARY.md) | 🟢 Bridge | Move semantics, RAII, FFI, embedded, no_std |
-| [**Rust for C# Programmers**](csharp-book/src/SUMMARY.md) | 🟢 Bridge | Swift / C# / Java → ownership & type system |
-| [**Rust for Python Programmers**](python-book/src/SUMMARY.md) | 🟢 Bridge | Dynamic → static typing, GIL-free concurrency |
-| [**Async Rust**](async-book/src/SUMMARY.md) | 🔵 Deep Dive | Tokio, streams, cancellation safety |
-| [**Rust Patterns**](rust-patterns-book/src/SUMMARY.md) | 🟡 Advanced | Pin, allocators, lock-free structures, unsafe |
-| [**Type-Driven Correctness**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 Expert | Type-state, phantom types, capability tokens |
-| [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
+| [**C/C++程序员的Rust**](c-cpp-book/src/SUMMARY.md) | 🟢 桥接 | 移动语义、RAII、FFI、嵌入式、no_std |
+| [**C#程序员的Rust**](csharp-book/src/SUMMARY.md) | 🟢 桥接 | Swift / C# / Java → 所有权与类型系统 |
+| [**Python程序员的Rust**](python-book/src/SUMMARY.md) | 🟢 桥接 | 动态→静态类型、GIL无关的并发 |
+| [**异步Rust**](async-book/src/SUMMARY.md) | 🔵 深度探索 | Tokio、流、取消安全性 |
+| [**Rust模式**](rust-patterns-book/src/SUMMARY.md) | 🟡 进阶 | Pin、分配器、无锁数据结构、unsafe |
+| [**类型驱动的正确性**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 专家 | 类型状态、幽灵类型、能力令牌 |
+| [**Rust工程实践**](engineering-book/src/SUMMARY.md) | 🟤 工程实践 | 构建脚本、交叉编译、CI/CD、Miri |
 
-Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
+每本书包含 15–16 章，配有 Mermaid 图表、可编辑的 Rust 练习场、习题和全文搜索。
 
-> **Tip:** You can read the markdown source directly on GitHub, or browse the rendered site with sidebar navigation and search at the GitHub Pages site (link in the repo's About section).
+> **提示：** 你可以直接在 GitHub 上阅读 Markdown 源码，也可以在 GitHub Pages 上浏览渲染后的站点（含侧边栏导航和搜索，链接见仓库 About 部分）。
 >
-> **Local serving:** For the best reading experience (keyboard navigation between chapters, instant search, offline access), clone the repo and run:
+> **本地服务：** 最佳阅读体验（章节间键盘导航、即时搜索、离线访问），请克隆仓库并运行：
 > ```
-> # Install Rust via rustup if you don't have it yet:
+> # 如果还没有 Rust，通过 rustup 安装：
 > # https://rustup.rs/
 >
 > cargo install mdbook mdbook-mermaid
-> cargo xtask serve          # builds all books and opens a local server
+> cargo xtask serve          # 构建所有书籍并打开本地服务器
 > ```
 
 ---
 
-## 🔧 For Maintainers
+## 🔧 维护者指南
 
 <details>
-<summary>Building, serving, and editing the books locally</summary>
+<summary>本地构建、服务和编辑书籍</summary>
 
-### Prerequisites
+### 前置要求
 
-Install [Rust via **rustup**](https://rustup.rs/) if you haven't already, then:
+如果还没有 Rust，请先 [通过 **rustup** 安装 Rust](https://rustup.rs/)，然后：
 
 ```bash
 cargo install mdbook mdbook-mermaid
 ```
 
-### Build & serve
+### 构建与服务
 
 ```bash
-cargo xtask build               # Build all books into site/ (local preview)
-cargo xtask serve               # Build and serve at http://localhost:3000
-cargo xtask deploy              # Build all books into docs/ (for GitHub Pages)
-cargo xtask clean               # Remove site/ and docs/
+cargo xtask build               # 构建所有书籍到 site/（本地预览）
+cargo xtask serve               # 构建并在 http://localhost:3000 提供服务
+cargo xtask deploy              # 构建所有书籍到 docs/（用于 GitHub Pages）
+cargo xtask clean               # 删除 site/ 和 docs/
 ```
 
-To build or serve a single book:
+构建或服务单本书籍：
 
 ```bash
 cd c-cpp-book && mdbook serve --open    # http://localhost:3000
 ```
 
-### Deployment
+### 部署
 
-The site auto-deploys to GitHub Pages on push to `master` via `.github/workflows/pages.yml`. No manual steps needed.
+网站通过 `.github/workflows/pages.yml` 在推送到 `master` 时自动部署到 GitHub Pages。无需手动操作。
 
 </details>

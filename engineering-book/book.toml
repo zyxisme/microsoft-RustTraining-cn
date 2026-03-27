@@ -1,5 +1,5 @@
 [book]
-title = "Rust Engineering Practices — Beyond cargo build"
+title = "Rust工程实践"
 authors = ["Rust Training Team"]
 language = "en"
 src = "src"

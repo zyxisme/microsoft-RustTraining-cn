@@ -1,34 +1,34 @@
-# 6. Concurrency vs Parallelism vs Threads 🟡
+# 6. 并发 vs 并行 vs 线程 🟡
 
-> **What you'll learn:**
-> - The precise distinction between concurrency and parallelism
-> - OS threads, scoped threads, and rayon for data parallelism
-> - Shared state primitives: Arc, Mutex, RwLock, Atomics, Condvar
-> - Lazy initialization with OnceLock/LazyLock and lock-free patterns
+> **学习内容：**
+> - 并发与并行的精确区别
+> - OS 线程、作用域线程和 rayon 数据并行
+> - 共享状态原语：Arc、Mutex、RwLock、原子类型、Condvar
+> - 使用 OnceLock/LazyLock 延迟初始化以及无锁模式
 
-## Terminology: Concurrency ≠ Parallelism
+## 术语：并发 ≠ 并行
 
-These terms are often confused. Here is the precise distinction:
+这些术语经常被混淆。以下是精确的区别：
 
-| | Concurrency | Parallelism |
+| | 并发 | 并行 |
 |---|---|---|
-| **Definition** | Managing multiple tasks that can make progress | Executing multiple tasks simultaneously |
-| **Hardware requirement** | One core is enough | Requires multiple cores |
-| **Analogy** | One cook, multiple dishes (switching between them) | Multiple cooks, each working on a dish |
-| **Rust tools** | `async/await`, channels, `select!` | `rayon`, `thread::spawn`, `par_iter()` |
+| **定义** | 管理多个可以取得进展的任务 | 同时执行多个任务 |
+| **硬件要求** | 一个核心就足够 | 需要多个核心 |
+| **类比** | 一个厨师，多道菜（在之间切换） | 多个厨师，每人做一道菜 |
+| **Rust 工具** | `async/await`、通道、`select!` | `rayon`、`thread::spawn`、`par_iter()` |
 
 ```text
 Concurrency (single core):           Parallelism (multi-core):
-                                      
+
 Task A: ██░░██░░██                   Task A: ██████████
 Task B: ░░██░░██░░                   Task B: ██████████
 ─────────────────→ time              ─────────────────→ time
 (interleaved on one core)           (simultaneous on two cores)
 ```
 
-### std::thread — OS Threads
+### std::thread — OS 线程
 
-Rust threads map 1:1 to OS threads. Each gets its own stack (typically 2-8 MB):
+Rust 线程与 OS 线程一一对应。每个线程有自己的栈（通常 2-8 MB）：
 
 ```rust
 use std::thread;
@@ -56,7 +56,7 @@ fn main() {
 }
 ```
 
-**Thread::spawn type requirements**:
+**Thread::spawn 类型要求**：
 
 ```rust
 // The closure must be:
@@ -74,9 +74,9 @@ thread::spawn(move || println!("{data:?}"));
 // data is no longer accessible here
 ```
 
-### Scoped Threads (std::thread::scope)
+### 作用域线程（std::thread::scope）
 
-Since Rust 1.63, scoped threads solve the `'static` requirement — threads can borrow from the parent scope:
+自 Rust 1.63 起，作用域线程解决了 `'static` 要求的问题——线程可以借用父作用域的数据：
 
 ```rust
 use std::thread;
@@ -108,13 +108,11 @@ fn main() {
 }
 ```
 
-> **This is huge**: Before scoped threads, you had to `Arc::clone()` everything
-> to share with threads. Now you can borrow directly, and the compiler proves
-> all threads finish before the data goes out of scope.
+> **这很重要**：在作用域线程出现之前，你必须 `Arc::clone()` 所有要在线程间共享的东西。现在你可以直接借用，编译器会证明所有线程都在数据超出作用域之前完成。
 
-### rayon — Data Parallelism
+### rayon — 数据并行
 
-`rayon` provides parallel iterators that distribute work across a thread pool automatically:
+`rayon` 提供并行迭代器，自动在线程池中分配工作：
 
 ```rust,ignore
 // Cargo.toml: rayon = "1"
@@ -149,18 +147,18 @@ fn expensive_computation(x: u64) -> u64 {
 }
 ```
 
-**When to use rayon vs threads**:
+**何时使用 rayon vs 线程**：
 
-| Use | When |
-|-----|------|
-| `rayon::par_iter()` | Processing collections in parallel (map, filter, reduce) |
-| `thread::spawn` | Long-running background tasks, I/O workers |
-| `thread::scope` | Short-lived parallel tasks that borrow local data |
-| `async` + `tokio` | I/O-bound concurrency (networking, file I/O) |
+| 使用场景 | 何时使用 |
+|---------|---------|
+| `rayon::par_iter()` | 并行处理集合（map、filter、reduce） |
+| `thread::spawn` | 长时间运行的后台任务、I/O 工作线程 |
+| `thread::scope` | 借用本地数据的短时并行任务 |
+| `async` + `tokio` | I/O 密集型并发（网络、文件 I/O） |
 
-### Shared State: Arc, Mutex, RwLock, Atomics
+### 共享状态：Arc、Mutex、RwLock、原子类型
 
-When threads need shared mutable state, Rust provides safe abstractions:
+当线程需要共享可变状态时，Rust 提供了安全的抽象：
 
 ```rust
 use std::sync::{Arc, Mutex, RwLock};
@@ -228,19 +226,18 @@ fn atomic_example() {
 }
 ```
 
-### Quick Comparison
+### 快速对比
 
-| Primitive | Use Case | Cost | Contention |
-|-----------|----------|------|------------|
-| `Mutex<T>` | Short critical sections | Lock + unlock | Threads wait in line |
-| `RwLock<T>` | Read-heavy, rare writes | Reader-writer lock | Readers concurrent, writer exclusive |
-| `AtomicU64` etc. | Counters, flags | Hardware CAS | Lock-free — no waiting |
-| Channels | Message passing | Queue ops | Producer/consumer decouple |
+| 原语 | 使用场景 | 成本 | 竞争 |
+|------|---------|------|------|
+| `Mutex<T>` | 短关键段 | 加锁 + 解锁 | 线程排队等待 |
+| `RwLock<T>` | 读多写少 | 读写锁 | 读者并发，写者独占 |
+| `AtomicU64` 等 | 计数器、标志 | 硬件 CAS | 无锁——无需等待 |
+| 通道 | 消息传递 | 队列操作 | 生产者/消费者解耦 |
 
-### Condition Variables (`Condvar`)
+### 条件变量（`Condvar`）
 
-A `Condvar` lets a thread **wait** until another thread signals that a condition is
-true, without busy-looping. It is always paired with a `Mutex`:
+`Condvar` 允许线程**等待**直到另一个线程发信号说条件为真，而无需忙等待。它总是与 `Mutex` 配对使用：
 
 ```rust
 use std::sync::{Arc, Mutex, Condvar};
@@ -269,15 +266,11 @@ let handle = thread::spawn(move || {
 handle.join().unwrap();
 ```
 
-> **Pattern**: Always re-check the condition in a `while` loop after `wait()` returns
-> — spurious wakeups are allowed by the OS.
+> **模式**：在 `wait()` 返回后始终在 `while` 循环中重新检查条件——操作系统允许虚假唤醒。
 
-### Lazy Initialization: OnceLock and LazyLock
+### 延迟初始化：OnceLock 和 LazyLock
 
-Before Rust 1.80, initializing a global static that requires runtime computation
-(e.g., parsing a config, compiling a regex) needed the `lazy_static!` macro or the
-`once_cell` crate. The standard library now provides two types that cover these
-use cases natively:
+在 Rust 1.80 之前，初始化需要运行时计算的全局静态（例如解析配置、编译正则表达式）需要 `lazy_static!` 宏或 `once_cell` crate。标准库现在提供了两种类型来原生覆盖这些使用场景：
 
 ```rust
 use std::sync::{OnceLock, LazyLock};
@@ -307,20 +300,18 @@ fn is_valid_identifier(s: &str) -> bool {
 }
 ```
 
-| Type | Stabilized | Init Timing | Use When |
-|------|-----------|-------------|----------|
-| `OnceLock<T>` | Rust 1.70 | Call-site (`get_or_init`) | Init depends on runtime args |
-| `LazyLock<T>` | Rust 1.80 | Definition-site (closure) | Init is self-contained |
-| `lazy_static!` | — | Definition-site (macro) | Pre-1.80 codebases (migrate away) |
-| `const fn` + `static` | Always | Compile-time | Value is computable at compile time |
+| 类型 | 稳定版本 | 初始化时机 | 使用场景 |
+|------|---------|-----------|---------|
+| `OnceLock<T>` | Rust 1.70 | 调用点（`get_or_init`） | 初始化取决于运行时参数 |
+| `LazyLock<T>` | Rust 1.80 | 定义点（闭包） | 初始化是自包含的 |
+| `lazy_static!` | — | 定义点（宏） | 1.80 之前的代码库（应迁移） |
+| `const fn` + `static` | 始终 | 编译时 | 值可以在编译时计算 |
 
-> **Migration tip**: Replace `lazy_static! { static ref X: T = expr; }` with
-> `static X: LazyLock<T> = LazyLock::new(|| expr);` — same semantics, no macro,
-> no external dependency.
+> **迁移提示**：将 `lazy_static! { static ref X: T = expr; }` 替换为 `static X: LazyLock<T> = LazyLock::new(|| expr);`——相同的语义，无需宏，无需外部依赖。
 
-### Lock-Free Patterns
+### 无锁模式
 
-For high-performance code, avoid locks entirely:
+对于高性能代码，完全避免锁：
 
 ```rust
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -415,28 +406,18 @@ impl<T: Copy> SeqLock<T> {
 }
 ```
 
-> **⚠️ Rust memory model caveat**: The non-atomic write through `UnsafeCell` in
-> `write()` concurrent with the non-atomic `ptr::read_volatile` in `read()` is
-> technically a data race under the Rust abstract machine — even though the
-> SeqLock protocol ensures readers always retry on stale data. This mirrors the
-> C kernel SeqLock pattern and is sound in practice on all modern hardware for
-> types `T` that fit in a single machine word (e.g., `u64`). For wider types,
-> consider using `AtomicU64` for the data field or wrapping access in a `Mutex`.
-> See [the Rust unsafe code guidelines](https://rust-lang.github.io/unsafe-code-guidelines/)
-> for the evolving story on `UnsafeCell` concurrency.
+> **⚠️ Rust 内存模型警告**：`UnsafeCell` 中的非原子写入（在 `write()` 中）与 `read()` 中的非原子 `ptr::read_volatile` 在 Rust 抽象机下实际上是数据竞争——即使 SeqLock 协议确保读者总是在陈旧数据上重试。这反映了 C 内核 SeqLock 模式，对于适合单机器字（如 `u64`）的类型在实践中是安全的。对于更宽的类型，考虑对数据字段使用 `AtomicU64` 或将访问包装在 `Mutex` 中。
+> 有关 `UnsafeCell` 并发的最新进展，请参阅[ Rust 不安全代码指南](https://rust-lang.github.io/unsafe-code-guidelines/)。
 
-> **Practical advice**: Lock-free code is hard to get right. Use `Mutex` or
-> `RwLock` unless profiling shows lock contention is your bottleneck. When you
-> do need lock-free, reach for proven crates (`crossbeam`, `arc-swap`, `dashmap`)
-> rather than rolling your own.
+> **实用建议**：无锁代码很难正确实现。除非性能分析显示锁竞争是瓶颈，否则使用 `Mutex` 或 `RwLock`。当你确实需要无锁时，使用成熟的 crate（`crossbeam`、`arc-swap`、`dashmap`）而不是自己实现。
 
-> **Key Takeaways — Concurrency**
-> - Scoped threads (`thread::scope`) let you borrow stack data without `Arc`
-> - `rayon::par_iter()` parallelizes iterators with one method call
-> - Use `OnceLock`/`LazyLock` instead of `lazy_static!`; use `Mutex` before reaching for atomics
-> - Lock-free code is hard — prefer proven crates over hand-rolled implementations
+> **关键要点 — 并发**
+> - 作用域线程（`thread::scope`）让你无需 `Arc` 就能借用栈数据
+> - `rayon::par_iter()` 用一个方法调用并行化迭代器
+> - 使用 `OnceLock`/`LazyLock` 而不是 `lazy_static!`；在需要原子类型之前先使用 `Mutex`
+> - 无锁代码很难——优先使用成熟的 crate 而不是手写实现
 
-> **See also:** [Ch 5 — Channels](ch05-channels-and-message-passing.md) for message-passing concurrency. [Ch 8 — Smart Pointers](ch08-smart-pointers-and-interior-mutability.md) for Arc/Rc details.
+> **另见：** [第 5 章 — 通道](ch05-channels-and-message-passing.md) 消息传递并发。[第 8 章 — 智能指针](ch08-smart-pointers-and-interior-mutability.md) Arc/Rc 详情。
 
 ```mermaid
 flowchart TD
@@ -467,12 +448,12 @@ flowchart TD
 
 ---
 
-### Exercise: Parallel Map with Scoped Threads ★★ (~25 min)
+### 练习：使用作用域线程的并行 Map ★★（约 25 分钟）
 
-Write a function `parallel_map<T, R>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R>` that splits `data` into `num_threads` chunks and processes each in a scoped thread. Do not use `rayon` — use `std::thread::scope`.
+编写一个函数 `parallel_map<T, R>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R>`，将 `data` 分成 `num_threads` 块并在作用域线程中处理每个块。不要使用 `rayon`——使用 `std::thread::scope`。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解答</summary>
 
 ```rust
 fn parallel_map<T: Sync, R: Send>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R> {

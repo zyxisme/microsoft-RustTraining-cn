@@ -1,5 +1,5 @@
 [book]
-title = "Rust for Python Programmers"
+title = "Python程序员的Rust"
 authors = ["Rust Training Team"]
 language = "en"
 src = "src"

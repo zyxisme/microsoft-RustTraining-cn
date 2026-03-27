@@ -1,16 +1,16 @@
-## Idiomatic Rust for Python Developers
+## Python 开发者的 Rust 惯用写法
 
-> **What you'll learn:** Top 10 habits to build, common pitfalls with fixes, a structured 3-month learning path,
-> the complete Python→Rust "Rosetta Stone" reference table, and recommended learning resources.
+> **你将学到：** 需要培养的 10 个最佳习惯，常见陷阱及修复方法，结构化的 3 个月学习路径，
+> 完整的 Python→Rust "Rosetta Stone" 参考表，以及推荐的学习资源。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
 ```mermaid
 flowchart LR
-    A["🟢 Week 1-2\nFoundations\n'Why won't this compile?'"] --> B["🟡 Week 3-4\nCore Concepts\n'Oh, it's protecting me'"] 
-    B --> C["🟡 Month 2\nIntermediate\n'I see why this matters'"] 
-    C --> D["🔴 Month 3+\nAdvanced\n'Caught a bug at compile time!'"] 
-    D --> E["🏆 Month 6\nFluent\n'Better programmer everywhere'"]
+    A["🟢 第 1-2 周\n基础\n'为什么不能编译？'"] --> B["🟡 第 3-4 周\n核心概念\n'哦，它在保护我'"]
+    B --> C["🟡 第 2 个月\n中级\n'我明白为什么这很重要'"]
+    C --> D["🔴 第 3 个月+\n高级\n'在编译时捕获了 bug！'"]
+    D --> E["🏆 第 6 个月\n流利\n'在每种语言中都成了更好的程序员'"]
     style A fill:#d4edda
     style B fill:#fff3cd
     style C fill:#fff3cd
@@ -18,203 +18,194 @@ flowchart LR
     style E fill:#c3e6cb,stroke:#28a745
 ```
 
-### Top 10 Habits to Build
+### 需要培养的 10 个最佳习惯
 
-1. **Use `match` on enums instead of `if isinstance()`**
+1. **用 `match` 处理枚举而不是 `if isinstance()`**
    ```python
    # Python                              # Rust
    if isinstance(shape, Circle): ...     match shape { Shape::Circle(r) => ... }
    ```
 
-2. **Let the compiler guide you** — Read error messages carefully. Rust's
-   compiler is the best in any language. It tells you what's wrong AND how to fix it.
+2. **让编译器引导你** — 仔细阅读错误消息。Rust 的编译器是所有语言中最好的。它告诉你哪里错了以及如何修复。
 
-3. **Prefer `&str` over `String` in function parameters** — Accept the most
-   general type. `&str` works with both `String` and string literals.
+3. **函数参数优先使用 `&str` 而不是 `String`** — 接受最泛化的类型。`&str` 对 `String` 和字符串字面量都适用。
 
-4. **Use iterators instead of index loops** — Iterator chains are more idiomatic
-   and often faster than `for i in 0..vec.len()`.
+4. **使用迭代器而不是索引循环** — 迭代器链更符合习惯，有时比 `for i in 0..vec.len()` 更快。
 
-5. **Embrace `Option` and `Result`** — Don't `.unwrap()` everything. Use `?`,
-   `map`, `and_then`, `unwrap_or_else`.
+5. **拥抱 `Option` 和 `Result`** — 不要什么都 `.unwrap()`。使用 `?`、`map`、`and_then`、`unwrap_or_else`。
 
-6. **Derive traits liberally** — `#[derive(Debug, Clone, PartialEq)]` should be
-   on most structs. It's free and makes testing easier.
+6. **自由地派生 trait** — `#[derive(Debug, Clone, PartialEq)]` 应该放在大多数结构体上。这是免费的，而且让测试更容易。
 
-7. **Use `cargo clippy` religiously** — It catches hundreds of style and correctness
-   issues. Treat it like `ruff` for Rust.
+7. **虔诚地使用 `cargo clippy`** — 它能捕获数百种样式和正确性问题。把它当作 Rust 的 `ruff`。
 
-8. **Don't fight the borrow checker** — If you're fighting it, you're probably
-   structuring data wrong. Refactor to make ownership clear.
+8. **不要与借用检查器作斗争** — 如果你在与它斗争，你可能数据结构搞错了。重构以使所有权清晰。
 
-9. **Use enums for state machines** — Instead of string flags or booleans, use
-   enums. The compiler ensures you handle every state.
+9. **用枚举表示状态机** — 不要用字符串标志或布尔值，用枚举。编译器确保你处理每种状态。
 
-10. **Clone first, optimize later** — When learning, use `.clone()` freely to
-    avoid ownership complexity. Optimize only when profiling shows a need.
+10. **先克隆，优化在后** — 学习时，自由地使用 `.clone()` 来避免所有权复杂性。只有在性能分析表明需要时才优化。
 
-### Common Mistakes from Python Developers
+### Python 开发者的常见错误
 
-| Mistake | Why | Fix |
-|---------|-----|-----|
-| `.unwrap()` everywhere | Panics at runtime | Use `?` or `match` |
-| String instead of &str | Unnecessary allocation | Use `&str` for params |
-| `for i in 0..vec.len()` | Not idiomatic | `for item in &vec` |
-| Ignoring clippy warnings | Miss easy improvements | `cargo clippy` |
-| Too many `.clone()` calls | Performance overhead | Refactor ownership |
-| Giant main() function | Hard to test | Extract into lib.rs |
-| Not using `#[derive()]` | Re-inventing the wheel | Derive common traits |
-| Panicking on errors | Not recoverable | Return `Result<T, E>` |
+| 错误 | 原因 | 修复 |
+|---------|-----|------|
+| 到处 `.unwrap()` | 运行时 panic | 使用 `?` 或 `match` |
+| String 而不是 &str | 不必要的分配 | 参数使用 `&str` |
+| `for i in 0..vec.len()` | 不符合习惯 | `for item in &vec` |
+| 忽略 clippy 警告 | 错过简单改进 | `cargo clippy` |
+| 太多 `.clone()` 调用 | 性能开销 | 重构所有权 |
+| 巨大的 main() 函数 | 难以测试 | 提取到 lib.rs |
+| 不使用 `#[derive()]` | 重复造轮子 | 派生常见 trait |
+| 对错误 panic | 不可恢复 | 返回 `Result<T, E>` |
 
 ***
 
-## Performance Comparison
+## 性能对比
 
-### Benchmark: Common Operations
+### 常见操作基准测试
 ```text
-Operation              Python 3.12    Rust (release)    Speedup
+操作                  Python 3.12    Rust（发布版）    加速比
 ─────────────────────  ────────────   ──────────────    ─────────
-Fibonacci(40)          ~25s           ~0.3s             ~80x
-Sort 10M integers      ~5.2s          ~0.6s             ~9x
-JSON parse 100MB       ~8.5s          ~0.4s             ~21x
-Regex 1M matches       ~3.1s          ~0.3s             ~10x
-HTTP server (req/s)    ~5,000         ~150,000          ~30x
-SHA-256 1GB file       ~12s           ~1.2s             ~10x
-CSV parse 1M rows      ~4.5s          ~0.2s             ~22x
-String concatenation   ~2.1s          ~0.05s            ~42x
+Fibonacci(40)          约 25s          约 0.3s           约 80x
+排序 1000 万整数       约 5.2s         约 0.6s           约 9x
+解析 100MB JSON        约 8.5s         约 0.4s           约 21x
+正则匹配 100 万次      约 3.1s         约 0.3s           约 10x
+HTTP 服务器（请求/秒） 约 5,000        约 150,000         约 30x
+SHA-256 1GB 文件       约 12s          约 1.2s           约 10x
+解析 100 万行 CSV     约 4.5s         约 0.2s           约 22x
+字符串拼接            约 2.1s         约 0.05s          约 42x
 ```
 
-> **Note**: Python with C extensions (NumPy, etc.) dramatically narrows the gap
-> for numerical work. These benchmarks compare pure Python vs pure Rust.
+> **注意**：带 C 扩展的 Python（NumPy 等）会大大缩小数值工作的差距。
+> 这些基准测试比较的是纯 Python 与纯 Rust。
 
-### Memory Usage
+### 内存使用
 ```text
 Python:                                 Rust:
 ─────────                               ─────
-- Object header: 28 bytes/object       - No object header
-- int: 28 bytes (even for 0)           - i32: 4 bytes, i64: 8 bytes
-- str "hello": 54 bytes                - &str "hello": 16 bytes (ptr + len)
-- list of 1000 ints: ~36 KB            - Vec<i32>: ~4 KB
-  (8 KB pointers + 28 KB int objects)
-- dict of 100 items: ~5.5 KB           - HashMap of 100: ~2.4 KB
+- 对象头：每个对象 28 字节               - 无对象头
+- int：28 字节（即使是 0）              - i32：4 字节，i64：8 字节
+- str "hello"：54 字节                  - &str "hello"：16 字节（ptr + len）
+- 1000 个 int 的列表：约 36 KB           - Vec<i32>：约 4 KB
+  （8 KB 指针 + 28 KB int 对象）
+- 100 项 dict：约 5.5 KB                - HashMap 100 项：约 2.4 KB
 
-Total for typical application:
-- Python: 50-200 MB baseline           - Rust: 1-5 MB baseline
+典型应用总内存：
+- Python：50-200 MB 基线               - Rust：1-5 MB 基线
 ```
 
 ***
 
-## Common Pitfalls and Solutions
+## 常见陷阱与解决方案
 
-### Pitfall 1: "The Borrow Checker Won't Let Me"
+### 陷阱 1："借用检查器不让我过"
 ```rust
-// Problem: trying to iterate and modify
+// 问题：尝试边迭代边修改
 let mut items = vec![1, 2, 3, 4, 5];
 // for item in &items {
-//     if *item > 3 { items.push(*item * 2); }  // ❌ Can't borrow mut while borrowed
+//     if *item > 3 { items.push(*item * 2); }  // ❌ 借用 mut 时不能借用
 // }
 
-// Solution 1: collect changes, apply after
+// 解决方案 1：收集更改，之后应用
 let additions: Vec<i32> = items.iter()
     .filter(|&&x| x > 3)
     .map(|&x| x * 2)
     .collect();
 items.extend(additions);
 
-// Solution 2: use retain/extend
+// 解决方案 2：使用 retain/extend
 items.retain(|&x| x <= 3);
 ```
 
-### Pitfall 2: "Too Many String Types"
+### 陷阱 2："太多字符串类型"
 ```rust
-// When in doubt:
-// - &str for function parameters
-// - String for struct fields and return values
-// - &str literals ("hello") work everywhere &str is expected
+// 拿不准时：
+// - 参数用 &str
+// - 结构体字段和返回值用 String
+// - &str 字面量（"hello"）可以在任何需要 &str 的地方使用
 
-fn process(input: &str) -> String {    // Accept &str, return String
+fn process(input: &str) -> String {    // 接受 &str，返回 String
     format!("Processed: {}", input)
 }
 ```
 
-### Pitfall 3: "I Miss Python's Simplicity"
+### 陷阱 3："我怀念 Python 的简洁"
 ```rust
-// Python one-liner:
+// Python 一行代码：
 // result = [x**2 for x in data if x > 0]
 
-// Rust equivalent:
+// Rust 等价：
 let result: Vec<i32> = data.iter()
     .filter(|&&x| x > 0)
     .map(|&x| x * x)
     .collect();
 
-// It's more verbose, but:
-// - Type-safe at compile time
-// - 10-100x faster
-// - No runtime type errors possible
-// - Explicit about memory allocation (.collect())
+// 它更冗长，但：
+// - 编译时类型安全
+// - 快 10-100 倍
+// - 不可能有运行时类型错误
+// - 内存分配显式（.collect()）
 ```
 
-### Pitfall 4: "Where's My REPL?"
+### 陷阱 4："我的 REPL 在哪？"
 ```rust
-// Rust has no REPL. Instead:
-// 1. Use `cargo test` as your REPL — write small tests to try things
-// 2. Use Rust Playground (play.rust-lang.org) for quick experiments
-// 3. Use `dbg!()` macro for quick debug output
-// 4. Use `cargo watch -x test` for auto-running tests on save
+// Rust 没有 REPL。替代方案：
+// 1. 用 `cargo test` 作为你的 REPL — 写小测试来尝试
+// 2. 使用 Rust Playground (play.rust-lang.org) 快速实验
+// 3. 使用 `dbg!()` 宏快速调试输出
+// 4. 使用 `cargo watch -x test` 保存时自动运行测试
 
 #[test]
 fn playground() {
-    // Use this as your "REPL" — run with `cargo test playground`
+    // 用这个作为你的"REPL" — 用 `cargo test playground` 运行
     let result = "hello world"
         .split_whitespace()
         .map(|w| w.to_uppercase())
         .collect::<Vec<_>>();
-    dbg!(&result);  // Prints: [src/main.rs:5] &result = ["HELLO", "WORLD"]
+    dbg!(&result);  // 打印：src/main.rs:5] &result = ["HELLO", "WORLD"]
 }
 ```
 
 ***
 
-## Learning Path and Resources
+## 学习路径与资源
 
-### Week 1-2: Foundations
-- [ ] Install Rust, set up VS Code with rust-analyzer
-- [ ] Complete chapters 1-4 of this guide (types, control flow)
-- [ ] Write 5 small programs converting Python scripts to Rust
-- [ ] Get comfortable with `cargo build`, `cargo test`, `cargo clippy`
+### 第 1-2 周：基础
+- [ ] 安装 Rust，用 rust-analyzer 设置 VS Code
+- [ ] 完成本指南的第 1-4 章（类型、控制流）
+- [ ] 写 5 个小程序将 Python 脚本转换为 Rust
+- [ ] 熟悉 `cargo build`、`cargo test`、`cargo clippy`
 
-### Week 3-4: Core Concepts
-- [ ] Complete chapters 5-8 (structs, enums, ownership, modules)
-- [ ] Rewrite a Python data processing script in Rust
-- [ ] Practice with `Option<T>` and `Result<T, E>` until natural
-- [ ] Read compiler error messages carefully — they're teaching you
+### 第 3-4 周：核心概念
+- [ ] 完成第 5-8 章（结构体、枚举、所有权、模块）
+- [ ] 用 Rust 重写一个 Python 数据处理脚本
+- [ ] 练习 `Option<T>` 和 `Result<T, E>` 直到感觉自然
+- [ ] 仔细阅读编译器错误消息 — 它们在教你
 
-### Month 2: Intermediate
-- [ ] Complete chapters 9-12 (error handling, traits, iterators)
-- [ ] Build a CLI tool with `clap` and `serde`
-- [ ] Write a PyO3 extension for a Python project hotspot
-- [ ] Practice iterator chains until they feel like comprehensions
+### 第 2 个月：中级
+- [ ] 完成第 9-12 章（错误处理、trait、迭代器）
+- [ ] 用 `clap` 和 `serde` 构建一个 CLI 工具
+- [ ] 为 Python 项目的热点写一个 PyO3 扩展
+- [ ] 练习迭代器链直到感觉像推导式
 
-### Month 3: Advanced
-- [ ] Complete chapters 13-16 (concurrency, unsafe, testing)
-- [ ] Build a web service with `axum` and `tokio`
-- [ ] Contribute to an open-source Rust project
-- [ ] Read "Programming Rust" (O'Reilly) for deeper understanding
+### 第 3 个月：高级
+- [ ] 完成第 13-16 章（并发、unsafe、测试）
+- [ ] 用 `axum` 和 `tokio` 构建一个 Web 服务
+- [ ] 为开源 Rust 项目做贡献
+- [ ] 阅读《Programming Rust》（O'Reilly）深入理解
 
-### Recommended Resources
-- **The Rust Book**: https://doc.rust-lang.org/book/ (official, excellent)
-- **Rust by Example**: https://doc.rust-lang.org/rust-by-example/ (learn by doing)
-- **Rustlings**: https://github.com/rust-lang/rustlings (exercises)
-- **Rust Playground**: https://play.rust-lang.org/ (online compiler)
-- **This Week in Rust**: https://this-week-in-rust.org/ (newsletter)
-- **PyO3 Guide**: https://pyo3.rs/ (Python ↔ Rust bridge)
-- **Comprehensive Rust** (Google): https://google.github.io/comprehensive-rust/
+### 推荐资源
+- **The Rust Book**：https://doc.rust-lang.org/book/ （官方，优秀）
+- **Rust by Example**：https://doc.rust-lang.org/rust-by-example/ （边做边学）
+- **Rustlings**：https://github.com/rust-lang/rustlings （练习）
+- **Rust Playground**：https://play.rust-lang.org/ （在线编译器）
+- **This Week in Rust**：https://this-week-in-rust.org/ （通讯）
+- **PyO3 Guide**：https://pyo3.rs/ （Python ↔ Rust 桥接）
+- **Comprehensive Rust**（Google）：https://google.github.io/comprehensive-rust/
 
 ### Python → Rust Rosetta Stone
 
-| Python | Rust | Chapter |
-|--------|------|---------|
+| Python | Rust | 章节 |
+|--------|------|------|
 | `list` | `Vec<T>` | 5 |
 | `dict` | `HashMap<K,V>` | 5 |
 | `set` | `HashSet<T>` | 5 |
@@ -224,13 +215,13 @@ fn playground() {
 | `Enum` | `enum` | 6 |
 | `None` | `Option<T>` | 6 |
 | `raise`/`try`/`except` | `Result<T,E>` + `?` | 9 |
-| `Protocol` (PEP 544) | `trait` | 10 |
-| `TypeVar` | Generics `<T>` | 10 |
-| `__dunder__` methods | Traits (Display, Add, etc.) | 10 |
-| `lambda` | `\|args\| body` | 12 |
-| generator `yield` | `impl Iterator` | 12 |
-| list comprehension | `.map().filter().collect()` | 12 |
-| `@decorator` | Higher-order fn or macro | 12a, 15 |
+| `Protocol`（PEP 544）| `trait` | 10 |
+| `TypeVar` | 泛型 `<T>` | 10 |
+| `__dunder__` 方法 | Trait（Display、Add 等）| 10 |
+| `lambda` | `|args| body` | 12 |
+| 生成器 `yield` | `impl Iterator` | 12 |
+| 列表推导式 | `.map().filter().collect()` | 12 |
+| `@decorator` | 高阶函数或宏 | 12a, 15 |
 | `asyncio` | `tokio` | 13 |
 | `threading` | `std::thread` | 13 |
 | `multiprocessing` | `rayon` | 13 |
@@ -239,48 +230,48 @@ fn playground() {
 | `pip install` | `cargo add` | 8 |
 | `requirements.txt` | `Cargo.lock` | 8 |
 | `pyproject.toml` | `Cargo.toml` | 8 |
-| `with` (context mgr) | Scope-based `Drop` | 15 |
+| `with`（上下文管理器）| 基于作用域的 `Drop` | 15 |
 | `json.dumps/loads` | `serde_json` | 15 |
 
 ***
 
-## Final Thoughts for Python Developers
+## 给 Python 开发者的最终建议
 
 ```rust
-What you'll miss from Python:
-- REPL and interactive exploration
-- Rapid prototyping speed
-- Rich ML/AI ecosystem (PyTorch, etc.)
-- "Just works" dynamic typing
-- pip install and immediate use
+你会怀念的 Python 特性：
+- REPL 和交互式探索
+- 快速原型开发速度
+- 丰富的 ML/AI 生态系统（PyTorch 等）
+- "能用"的动态类型
+- pip install 就能立即使用
 
-What you'll gain from Rust:
-- "If it compiles, it works" confidence
-- 10-100x performance improvement
-- No more runtime type errors
-- No more None/null crashes
-- True parallelism (no GIL!)
-- Single binary deployment
-- Predictable memory usage
-- The best compiler error messages in any language
+你将从 Rust 获得的：
+- "如果能编译，就能工作"的信心
+- 10-100 倍的性能提升
+- 不再有运行时类型错误
+- 不再有 None/null 崩溃
+- 真正的并行（无 GIL！）
+- 单二进制部署
+- 可预测的内存使用
+- 任何语言中最好的编译器错误消息
 
-The journey:
-Week 1:   "Why does the compiler hate me?"
-Week 2:   "Oh, it's actually protecting me from bugs"
-Month 1:  "I see why this matters"
-Month 2:  "I caught a bug at compile time that would've been a production incident"
-Month 3:  "I don't want to go back to untyped code"
-Month 6:  "Rust has made me a better programmer in every language"
+学习历程：
+第 1 周：   "为什么编译器讨厌我？"
+第 2 周：   "哦，它实际上在保护我免受 bug 侵害"
+第 1 个月： "我明白为什么这很重要"
+第 2 个月： "我在编译时捕获了一个本会成为生产事故的 bug"
+第 3 个月： "我不想回到无类型代码"
+第 6 个月： "Rust 让我成为每种语言的更好的程序员"
 ```
 
 ---
 
-## Exercises
+## 练习
 
 <details>
-<summary><strong>🏋️ Exercise: Code Review Checklist</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：代码审查清单</strong>（点击展开）</summary>
 
-**Challenge**: Review this Rust code (written by a Python developer) and identify 5 idiomatic improvements:
+**挑战**：审查这段 Rust 代码（由 Python 开发者编写）并找出 5 个符合习惯的改进：
 
 ```rust
 fn get_name(names: Vec<String>, index: i32) -> String {
@@ -300,16 +291,16 @@ fn main() {
 ```
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
-Five improvements:
+五个改进：
 
 ```rust
-// 1. Take &[String] not Vec<String> (don't take ownership of the whole vec)
-// 2. Use usize for index (not i32 — indices are always non-negative)
-// 3. Return Option<&str> instead of empty string (use the type system!)
-// 4. Use .get() instead of bounds-checking manually
-// 5. Don't clone() in main — pass a reference
+// 1. 参数用 &[String] 而不是 Vec<String>（不要获取整个 vec 的所有权）
+// 2. 索引用 usize 而不是 i32（索引始终非负）
+// 3. 返回 Option<&str> 而不是空字符串（使用类型系统！）
+// 4. 使用 .get() 而不是手动边界检查
+// 5. main 中不要 clone() — 传递引用
 
 fn get_name(names: &[String], index: usize) -> Option<&str> {
     names.get(index).map(|s| s.as_str())
@@ -324,11 +315,11 @@ fn main() {
 }
 ```
 
-**Key takeaway**: Python habits that hurt in Rust: cloning everything (use borrows), using sentinel values like `""` (use `Option`), taking ownership when borrowing suffices, and using signed integers for indices.
+**关键要点**：在 Rust 中有害的 Python 习惯：克隆一切（使用借用）、使用哨兵值如 `""`（使用 `Option`）、可以借用时却获取所有权、以及用有符号整数做索引。
 
 </details>
 </details>
 
 ***
 
-*End of Rust for Python Programmers Training Guide*
+*Rust for Python 程序员培训指南 完*

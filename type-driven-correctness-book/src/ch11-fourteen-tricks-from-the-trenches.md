@@ -1,51 +1,39 @@
-# Fourteen Tricks from the Trenches 🟡
+# 来自实战的十四个技巧 🟡
 
-> **What you'll learn:** Fourteen smaller correct-by-construction techniques — from sentinel elimination and sealed traits to session types, `Pin`, RAII, and `#[must_use]` — each eliminating a specific bug class for near-zero effort.
+> **你将学到：** 十四个较小的正确性构造技术——从哨兵值消除、密封 trait 到会话类型、`Pin`、RAII 和 `#[must_use]`——每个都能以几乎零成本消除特定的 bug 类别。
 >
-> **Cross-references:** [ch02](ch02-typed-command-interfaces-request-determi.md) (sealed traits extend ch02), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (typestate builder extends ch05), [ch07](ch07-validated-boundaries-parse-dont-validate.md) (FromStr extends ch07)
+> **交叉引用：** [ch02](ch02-typed-command-interfaces-request-determi.md)（密封 trait 扩展 ch02），[ch05](ch05-protocol-state-machines-type-state-for-r.md)（类型状态构建器扩展 ch05），[ch07](ch07-validated-boundaries-parse-dont-validate.md)（FromStr 扩展 ch07）
 
-## Fourteen Tricks from the Trenches
+## 来自实战的十四个技巧
 
-The eight core patterns (ch02–ch09) cover the major correct-by-construction
-techniques. This chapter collects fourteen **smaller but high-value tricks** that
-show up repeatedly in production Rust code — each one eliminates a specific
-class of bug for zero or near-zero effort.
+八个核心模式（ch02–ch09）涵盖了主要的正确性构造技术。本章收集了十四个 **较小但高价值的技巧**，它们在生产 Rust 代码中反复出现——每个都能以零或几乎零成本消除特定的 bug 类别。
 
-### Trick 1 — Sentinel → `Option` at the Boundary
+### 技巧1 — 边界处的哨兵值 → `Option`
 
-Hardware protocols are full of sentinel values: IPMI uses `0xFF` for
-"sensor not present," PCI uses `0xFFFF` for "no device," and SMBIOS uses
-`0x00` for "unknown." If you carry these sentinels through your code as
-plain integers, every consumer must remember to check for the magic value.
-If even one comparison forgets, you get a phantom 255 °C reading or a
-spurious vendor-ID match.
+硬件协议充满了哨兵值：IPMI 使用 `0xFF` 表示"传感器不存在"，PCI 使用 `0xFFFF` 表示"无设备"，SMBIOS 使用 `0x00` 表示"未知"。如果你将这些哨兵值作为普通整数带入代码，每个使用者都必须记得检查这个魔法值。如果忘记一个比较，你会得到一个虚假的 255°C 读数或一个伪造的供应商 ID 匹配。
 
-**The rule:** Convert sentinels to `Option` at the very first parse boundary,
-and convert *back* to the sentinel only at the serialization boundary.
+**规则：** 在最开始的解析边界将哨兵值转换为 `Option`，仅在序列化边界转换回哨兵值。
 
-#### The anti-pattern (from `pcie_tree/src/lspci.rs`)
+#### 反模式（来自 `pcie_tree/src/lspci.rs`）
 
 ```rust,ignore
-// Sentinel carried internally — every comparison must remember
+// 哨兵值在内部携带 — 每个比较都必须记住
 let mut current_vendor_id: u16 = 0xFFFF;
 let mut current_device_id: u16 = 0xFFFF;
 
-// ... later, parsing fails silently ...
+// ... 稍后，解析静默失败 ...
 current_vendor_id = u16::from_str_radix(hex, 16)
-    .unwrap_or(0xFFFF);  // sentinel hides the error
+    .unwrap_or(0xFFFF);  // 哨兵值隐藏了错误
 ```
 
-Every function that receives `current_vendor_id` must know that `0xFFFF` is
-special. If someone writes `if vendor_id == target_id` without checking
-for `0xFFFF` first, a missing device silently matches when the target also
-happens to be parsed from bad input as `0xFFFF`.
+每个接收 `current_vendor_id` 的函数都必须知道 `0xFFFF` 是特殊的。如果有人在没有先检查 `0xFFFF` 的情况下写 `if vendor_id == target_id`，当目标恰好也从坏输入解析为 `0xFFFF` 时，缺失的设备会静默匹配。
 
-#### The correct pattern (from `nic_sel/src/events.rs`)
+#### 正确的模式（来自 `nic_sel/src/events.rs`）
 
 ```rust,ignore
 pub struct ThermalEvent {
     pub record_id: u16,
-    pub temperature: Option<u8>,  // None if sensor reports 0xFF
+    pub temperature: Option<u8>,  // 如果传感器报告 0xFF 则为 None
 }
 
 impl ThermalEvent {
@@ -62,23 +50,23 @@ impl ThermalEvent {
 }
 ```
 
-Now every consumer *must* handle the `None` case — the compiler forces it:
+现在每个使用者 *必须* 处理 `None` 情况——编译器强制它：
 
 ```rust,ignore
-// Safe — compiler ensures we handle missing temps
+// 安全 — 编译器确保我们处理缺失的温度
 fn is_overtemp(temp: Option<u8>, threshold: u8) -> bool {
     temp.map_or(false, |t| t > threshold)
 }
 
-// Forgetting to handle None is a compile error:
+// 忘记处理 None 是编译错误：
 // fn bad_check(temp: Option<u8>, threshold: u8) -> bool {
-//     temp > threshold  // ERROR: can't compare Option<u8> with u8
+//     temp > threshold  // 错误：不能将 Option<u8> 与 u8 比较
 // }
 ```
 
-#### Real-world impact
+#### 实际影响
 
-`inventory/src/events.rs` uses the same pattern for GPU thermal alerts:
+`inventory/src/events.rs` 对 GPU 热警报使用相同的模式：
 ```rust,ignore
 temperature: if data[1] != 0xFF {
     Some(data[1] as i8)
@@ -87,38 +75,30 @@ temperature: if data[1] != 0xFF {
 },
 ```
 
-The refactoring for `pcie_tree/src/lspci.rs` is straightforward: change
-`current_vendor_id: u16` to `current_vendor_id: Option<u16>`, replace
-`0xFFFF` with `None`, and let the compiler find every site that needs
-updating.
+`pcie_tree/src/lspci.rs` 的重构很简单：将 `current_vendor_id: u16` 改为 `current_vendor_id: Option<u16>`，将 `0xFFFF` 替换为 `None`，然后让编译器找到每个需要更新的地方。
 
-| Before | After |
+| 之前 | 之后 |
 |--------|-------|
 | `let mut vendor_id: u16 = 0xFFFF` | `let mut vendor_id: Option<u16> = None` |
-| `.unwrap_or(0xFFFF)` | `.ok()` (already returns `Option`) |
+| `.unwrap_or(0xFFFF)` | `.ok()`（已经返回 `Option`） |
 | `if vendor_id != 0xFFFF { ... }` | `if let Some(vid) = vendor_id { ... }` |
-| Serialization: `vendor_id` | `vendor_id.unwrap_or(0xFFFF)` |
+| 序列化：`vendor_id` | `vendor_id.unwrap_or(0xFFFF)` |
 
 ***
 
-### Trick 2 — Sealed Traits
+### 技巧2 — 密封 Trait
 
-Chapter 2 introduced `IpmiCmd` with an associated type that binds each command
-to its response. But there's a loophole: if *any* code can implement `IpmiCmd`,
-someone could write a `MaliciousCmd` whose `parse_response` returns the wrong
-type or panics. The type safety of the entire system rests on every
-implementation being correct.
+第2章介绍了带有关联类型的 `IpmiCmd`，将每个命令绑定到其响应。但有一个漏洞： 如果 *任何* 代码可以实现 `IpmiCmd`，有人可以写一个 `MaliciousCmd`，其 `parse_response` 返回错误的类型或 panic。整个系统的类型安全性建立在每个实现都是正确的基础上。
 
-A **sealed trait** closes this loophole. The idea is simple: make the trait
-require a *private* supertrait that only your crate can implement.
+**密封 trait** 关闭了这个漏洞。想法很简单：让 trait 需要一个 *私有的* 超 trait，只有你的 crate 可以实现它。
 
 ```rust,ignore
-// — Private module: not exported from the crate —
+// — 私有模块：从 crate 导出 —
 mod private {
     pub trait Sealed {}
 }
 
-// — Public trait: requires Sealed, which outsiders can't implement —
+// — 公共 trait：需要 Sealed，外部人员无法实现 —
 pub trait IpmiCmd: private::Sealed {
     type Response;
     fn net_fn(&self) -> u8;
@@ -128,7 +108,7 @@ pub trait IpmiCmd: private::Sealed {
 }
 ```
 
-Inside your crate, you implement `Sealed` for each approved command type:
+在 crate 内部，你为每个批准的命令类型实现 `Sealed`：
 
 ```rust,ignore
 pub struct ReadTemp { pub sensor_id: u8 }
@@ -146,34 +126,34 @@ impl IpmiCmd for ReadTemp {
 }
 ```
 
-External code sees `IpmiCmd` and can call `execute()`, but cannot implement it:
+外部代码看到 `IpmiCmd` 并可以调用 `execute()`，但不能实现它：
 
 ```rust,ignore
-// In another crate:
+// 在另一个 crate 中：
 struct EvilCmd;
-// impl private::Sealed for EvilCmd {}  // ERROR: module `private` is private
-// impl IpmiCmd for EvilCmd { ... }     // ERROR: `Sealed` is not satisfied
+// impl private::Sealed for EvilCmd {}  // 错误：模块 `private` 是私有的
+// impl IpmiCmd for EvilCmd { ... }     // 错误：`Sealed` 未满足
 ```
 
-#### When to seal
+#### 何时密封
 
-| Seal when… | Don't seal when… |
+| 密封当… | 不要密封当… |
 |-----------|-----------------|
-| Safety depends on correct implementation (IpmiCmd, DiagModule) | Users should extend the system (custom report formatters) |
-| Associated types must satisfy invariants | The trait is a simple capability marker (HasIpmi) |
-| You own the canonical set of implementations | Third-party plugins are a design goal |
+| 安全性取决于正确实现（IpmiCmd、DiagModule） | 用户应该扩展系统（自定义报告格式化器） |
+| 关联类型必须满足不变量 | trait 是一个简单的能力标记（HasIpmi） |
+| 你拥有规范的实现集 | 第三方插件是设计目标 |
 
-#### Real-world candidates
+#### 实际候选者
 
-- `IpmiCmd` — incorrect parse could corrupt typed responses
-- `DiagModule` — framework assumes `run()` returns valid DER records
-- `SelEventFilter` — broken filter could swallow critical SEL events
+- `IpmiCmd` — 错误的解析可能损坏类型化响应
+- `DiagModule` — 框架假设 `run()` 返回有效的 DER 记录
+- `SelEventFilter` — 坏的过滤器可能吞掉关键 SEL 事件
 
 ***
 
-### Trick 3 — `#[non_exhaustive]` for Evolving Enums
+### 技巧3 — `#[non_exhaustive]` 用于演进的枚举
 
-`SkuVariant` in `inventory/src/types.rs` today has five variants:
+今天 `inventory/src/types.rs` 中的 `SkuVariant` 有五个变体：
 
 ```rust,ignore
 pub enum SkuVariant {
@@ -181,23 +161,14 @@ pub enum SkuVariant {
 }
 ```
 
-When the next generation ships and you add `S4001`, any external code that
-matches on `SkuVariant` and doesn't have a wildcard arm will **silently fail
-to compile** — which is the whole point. But what about internal code? Without
-`#[non_exhaustive]`, your `match` in the *same crate* compiles without a
-wildcard, and adding the new variant breaks your own build.
+当下一代产品发布并添加 `S4001` 时，任何外部代码如果匹配 `SkuVariant` 且没有通配符 arm，将会 **静默编译失败**——这正是重点。但内部代码呢？没有 `#[non_exhaustive]`，你在 *同一个 crate* 中的 `match` 在没有通配符的情况下编译，添加新变体会破坏你自己的构建。
 
-Marking the enum `#[non_exhaustive]` forces **external crates** that match on
-it to include a wildcard arm. Within the defining crate, `#[non_exhaustive]`
-has no effect — you can still write exhaustive matches.
+标记枚举为 `#[non_exhaustive]` 强制 **外部 crate** 在匹配它时包含通配符 arm。在定义的 crate 内部，`#[non_exhaustive]` 没有效果——你仍然可以写穷尽匹配。
 
-**Why this is useful:** When you publish `SkuVariant` from a library crate
-(or a shared sub-crate in a workspace), downstream code is forced to handle
-unknown future variants. When you add `S4001` next generation, downstream
-code already compiles — they have a wildcard arm.
+**为什么这有用：** 当你从库 crate 发布 `SkuVariant`（或工作空间中的共享子 crate）时，下游代码被迫处理未知的未来变体。当下一代添加 `S4001` 时，下游代码已经编译——它们有通配符 arm。
 
 ```rust,ignore
-// In gpu_sel crate (the defining crate):
+// 在 gpu_sel crate（定义 crate）中：
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SkuVariant {
@@ -206,11 +177,11 @@ pub enum SkuVariant {
     S2002,
     S2003,
     S3001,
-    // When the next SKU ships, add it here.
-    // External consumers already have a wildcard — zero breakage for them.
+    // 当下一代 SKU 发布时，在这里添加。
+    // 外部使用者已经有通配符 arm — 对它们零破坏。
 }
 
-// Within gpu_sel itself — exhaustive match is allowed (no wildcard needed):
+// 在 gpu_sel 内部 — 允许穷尽匹配（不需要通配符）：
 fn diag_path_internal(sku: SkuVariant) -> &'static str {
     match sku {
         SkuVariant::S1001 => "legacy_gen1",
@@ -218,15 +189,15 @@ fn diag_path_internal(sku: SkuVariant) -> &'static str {
         SkuVariant::S2002 => "gen2_alt_diag",
         SkuVariant::S2003 => "gen2_alt_hf_diag",
         SkuVariant::S3001 => "gen3_accel_diag",
-        // No wildcard needed inside the defining crate.
-        // Adding S4001 here will cause a compile error at this match,
-        // which is exactly what you want — it forces you to update it.
+        // 在定义 crate 内部不需要通配符。
+        // 在这里添加 S4001 将导致此 match 的编译错误，
+        // 这正是你想要的 — 它强制你更新它。
     }
 }
 ```
 
 ```rust,ignore
-// In the binary crate (a downstream crate that depends on inventory):
+// 在二进制 crate 中（依赖于 inventory 的下游 crate）：
 fn diag_path_external(sku: inventory::SkuVariant) -> &'static str {
     match sku {
         inventory::SkuVariant::S1001 => "legacy_gen1",
@@ -234,39 +205,34 @@ fn diag_path_external(sku: inventory::SkuVariant) -> &'static str {
         inventory::SkuVariant::S2002 => "gen2_alt_diag",
         inventory::SkuVariant::S2003 => "gen2_alt_hf_diag",
         inventory::SkuVariant::S3001 => "gen3_accel_diag",
-        _ => "generic_diag",  // REQUIRED by #[non_exhaustive] for external crates
+        _ => "generic_diag",  // 外部 crate 需要 #[non_exhaustive]
     }
 }
 ```
 
-> **Workspace tip:** If all your code is in a single crate, `#[non_exhaustive]`
-> won't help — it only affects cross-crate boundaries. For the project's
-> large workspace, place evolving enums in a shared crate (`core_lib` or
-> `inventory`) so the attribute protects consumers in other workspace crates.
+> **工作空间提示：** 如果你所有代码都在单个 crate 中，`#[non_exhaustive]` 不会帮助——它只影响跨 crate 边界。对于项目的大型工作空间，将演进的枚举放在共享 crate（`core_lib` 或 `inventory`）中，这样属性就能保护其他工作空间 crate 中的使用者。
 
-#### Candidates
+#### 候选者
 
-| Enum | Module | Why |
+| 枚举 | 模块 | 为什么 |
 |------|--------|-----|
-| `SkuVariant` | `inventory`, `net_inventory` | New SKUs every generation |
-| `SensorType` | `protocol_lib` | IPMI spec reserves 0xC0–0xFF for OEM |
-| `CompletionCode` | `protocol_lib` | Custom BMC vendors add codes |
-| `Component` | `event_handler` | New hardware categories (NewSoC was recently added) |
+| `SkuVariant` | `inventory`, `net_inventory` | 每代新 SKU |
+| `SensorType` | `protocol_lib` | IPMI 规范为 OEM 保留 0xC0–0xFF |
+| `CompletionCode` | `protocol_lib` | 自定义 BMC 供应商添加代码 |
+| `Component` | `event_handler` | 新硬件类别（最近添加了 NewSoC） |
 
 ***
 
-### Trick 4 — Typestate Builder
+### 技巧4 — 类型状态构建器
 
-Chapter 5 showed type-state for *protocols* (session lifecycles, link training).
-The same idea applies to *builders* — structs whose `build()` / `finish()`
-can only be called when all required fields have been set.
+第5章展示了 *协议* 的类型状态（会话生命周期、链路训练）。同样的想法适用于 *构建器*——其 `build()` / `finish()` 只能在所有必填字段都设置后才能调用的结构体。
 
-#### The problem with fluent builders
+#### 流畅构建器的问题
 
-`DerBuilder` in `diag_framework/src/der.rs` today looks like this (simplified):
+`diag_framework/src/der.rs` 中的 `DerBuilder` 今天看起来像这样（简化）：
 
 ```rust,ignore
-// Current fluent builder — finish() always available
+// 当前流畅构建器 — finish() 始终可用
 pub struct DerBuilder {
     der: Der,
 }
@@ -275,18 +241,18 @@ impl DerBuilder {
     pub fn new(marker: &str, fault_code: u32) -> Self { ... }
     pub fn mnemonic(mut self, m: &str) -> Self { ... }
     pub fn fault_class(mut self, fc: &str) -> Self { ... }
-    pub fn finish(self) -> Der { self.der }  // ← always callable!
+    pub fn finish(self) -> Der { self.der }  // ← 始终可调用！
 }
 ```
 
-This compiles without error, but produces an incomplete DER record:
+这编译没有错误，但产生一个不完整的 DER 记录：
 
 ```rust,ignore
 let bad = DerBuilder::new("CSI_ERR", 62691)
-    .finish();  // oops — no mnemonic, no fault_class
+    .finish();  // 哎呀 — 没有 mnemonic，没有 fault_class
 ```
 
-#### Typestate builder: `finish()` requires both fields
+#### 类型状态构建器：`finish()` 需要两个字段
 
 ```rust,ignore
 pub struct Missing;
@@ -300,7 +266,7 @@ pub struct DerBuilder<Mnemonic, FaultClass> {
     description: Option<String>,
 }
 
-// Constructor: starts with both required fields Missing
+// 构造函数：两个必填字段都从 Missing 开始
 impl DerBuilder<Missing, Missing> {
     pub fn new(marker: &str, fault_code: u32) -> Self {
         DerBuilder {
@@ -313,7 +279,7 @@ impl DerBuilder<Missing, Missing> {
     }
 }
 
-// Set mnemonic (works regardless of fault_class's state)
+// 设置 mnemonic（不管 fault_class 的状态）
 impl<FC> DerBuilder<Missing, FC> {
     pub fn mnemonic(self, m: &str) -> DerBuilder<Set<String>, FC> {
         DerBuilder {
@@ -325,7 +291,7 @@ impl<FC> DerBuilder<Missing, FC> {
     }
 }
 
-// Set fault_class (works regardless of mnemonic's state)
+// 设置 fault_class（不管 mnemonic 的状态）
 impl<MN> DerBuilder<MN, Missing> {
     pub fn fault_class(self, fc: &str) -> DerBuilder<MN, Set<String>> {
         DerBuilder {
@@ -337,7 +303,7 @@ impl<MN> DerBuilder<MN, Missing> {
     }
 }
 
-// Optional fields — available in ANY state
+// 可选字段 — 在任何状态下都可用
 impl<MN, FC> DerBuilder<MN, FC> {
     pub fn description(mut self, desc: &str) -> Self {
         self.description = Some(desc.to_string());
@@ -345,7 +311,7 @@ impl<MN, FC> DerBuilder<MN, FC> {
     }
 }
 
-/// The fully-built DER record.
+/// 完全构建的 DER 记录。
 pub struct Der {
     pub marker: String,
     pub fault_code: u32,
@@ -354,7 +320,7 @@ pub struct Der {
     pub description: Option<String>,
 }
 
-// finish() ONLY available when both required fields are Set
+// finish() 仅在两个必填字段都是 Set 时可用
 impl DerBuilder<Set<String>, Set<String>> {
     pub fn finish(self) -> Der {
         Der {
@@ -368,52 +334,50 @@ impl DerBuilder<Set<String>, Set<String>> {
 }
 ```
 
-Now the buggy call is a compile error:
+现在有问题的调用是编译错误：
 
 ```rust,ignore
-// ✅ Compiles — both required fields set (in any order)
+// ✅ 编译 — 两个必填字段都设置了（任意顺序）
 let der = DerBuilder::new("CSI_ERR", 62691)
-    .fault_class("GPU Module")   // order doesn't matter
+    .fault_class("GPU Module")   // 顺序不重要
     .mnemonic("ACCEL_CARD_ER691")
     .description("Thermal throttle")
     .finish();
 
-// ❌ Compile error — finish() doesn't exist on DerBuilder<Set<String>, Missing>
+// ❌ 编译错误 — finish() 在 DerBuilder<Set<String>, Missing> 上不存在
 let bad = DerBuilder::new("CSI_ERR", 62691)
     .mnemonic("ACCEL_CARD_ER691")
-    .finish();  // ERROR: method `finish` not found
+    .finish();  // 错误：找不到方法 `finish`
 ```
 
-#### When to use typestate builders
+#### 何时使用类型状态构建器
 
-| Use when… | Don't bother when… |
+| 使用当… | 不要麻烦当… |
 |-----------|-------------------|
-| Omitting a field causes silent bugs (DER missing mnemonic) | All fields have sensible defaults |
-| The builder is part of a public API | The builder is test-only scaffolding |
-| More than 2–3 required fields | Single required field (just take it in `new()`) |
+| 省略字段导致静默 bug（DER 缺失 mnemonic） | 所有字段都有合理的默认值 |
+| 构建器是公共 API 的一部分 | 构建器是仅用于测试的脚手架 |
+| 超过 2-3 个必填字段 | 单个必填字段（就在 `new()` 中获取） |
 
 ***
 
-### Trick 5 — `FromStr` as a Validation Boundary
+### 技巧5 — `FromStr` 作为验证边界
 
-Chapter 7 showed `TryFrom<&[u8]>` for binary data (FRU records, SEL entries).
-For **string** inputs — config files, CLI arguments, JSON fields — the
-analogous boundary is `FromStr`.
+第7章展示了用于二进制数据（FRU 记录、SEL 条目）的 `TryFrom<&[u8]>`。对于 **字符串** 输入——配置文件、CLI 参数、JSON 字段——类似的边界是 `FromStr`。
 
-#### The problem
+#### 问题
 
 ```rust,ignore
-// C++ / unvalidated Rust: silently falls through to a default
+// C++ / 未验证的 Rust：静默退回到默认值
 fn route_diag(level: &str) -> DiagMode {
     if level == "quick" { ... }
     else if level == "standard" { ... }
-    else { QuickMode }  // typo in config?  ¯\_(ツ)_/¯
+    else { QuickMode }  // 配置中的拼写错误？  ¯\_(ツ)_/¯
 }
 ```
 
-A config file with `"diag_level": "extendedd"` (typo) silently gets `QuickMode`.
+带有 `"diag_level": "extendedd"`（拼写错误）的配置文件会静默获得 `QuickMode`。
 
-#### The pattern (from `config_loader/src/diag.rs`)
+#### 模式（来自 `config_loader/src/diag.rs`）
 
 ```rust,ignore
 use std::str::FromStr;
@@ -440,76 +404,72 @@ impl FromStr for DiagLevel {
 }
 ```
 
-Now a typo is caught immediately:
+现在拼写错误会立即被捕获：
 
 ```rust,ignore
 let level: DiagLevel = "extendedd".parse()?;
 // Err("unknown diag level: 'extendedd'")
 ```
 
-#### The three benefits
+#### 三个好处
 
-1. **Fail-fast:** Bad input is caught at the parsing boundary, not three
-   layers deep in diagnostic logic.
-2. **Aliases are explicit:** `"MEM"`, `"DIMM"`, and `"MEMORY"` all map to
-   `Component::Memory` — the match arms document the mapping.
-3. **`.parse()` is ergonomic:** Because `FromStr` integrates with `str::parse()`,
-   you get clean one-liners: `let level: DiagLevel = config["level"].parse()?;`
+1. **快速失败：** 坏输入在解析边界被捕获，而不是在诊断逻辑深处三层。
+2. **别名是显式的：** `"MEM"`、`"DIMM"` 和 `"MEMORY"` 都映射到 `Component::Memory`——match 分支记录了映射。
+3. **`.parse()` 人体工学：** 因为 `FromStr` 与 `str::parse()` 集成，你得到干净的单行代码：`let level: DiagLevel = config["level"].parse()?;`
 
-#### Real codebase usage
+#### 实际代码库使用
 
-The project already has 8 `FromStr` implementations:
+项目已有 8 个 `FromStr` 实现：
 
-| Type | Module | Notable aliases |
+| 类型 | 模块 | 值得注意的别名 |
 |------|--------|----------------|
 | `DiagLevel` | `config_loader` | `"1"` = Quick, `"4"` = Stress |
 | `Component` | `event_handler` | `"MEM"` / `"DIMM"` = Memory, `"SSD"` / `"NVME"` = Disk |
 | `SkuVariant` | `net_inventory` | `"Accel-X1"` = S2001, `"Accel-M1"` = S2002, `"Accel-Z1"` = S3001 |
-| `SkuVariant` | `inventory` | Same aliases (separate module, same pattern) |
-| `FaultStatus` | `config_loader` | Fault lifecycle states |
-| `DiagAction` | `config_loader` | Remediation action types |
-| `ActionType` | `config_loader` | Action categories |
-| `DiagMode` | `cluster_diag` | Multi-node test modes |
+| `SkuVariant` | `inventory` | 相同别名（独立模块，相同模式） |
+| `FaultStatus` | `config_loader` | 故障生命周期状态 |
+| `DiagAction` | `config_loader` | 修复操作类型 |
+| `ActionType` | `config_loader` | 操作类别 |
+| `DiagMode` | `cluster_diag` | 多节点测试模式 |
 
-The contrast with `TryFrom`:
+与 `TryFrom` 的对比：
 
 | | `TryFrom<&[u8]>` | `FromStr` |
 |---|---|---|
-| Input | Raw bytes (binary protocols) | Strings (configs, CLI, JSON) |
-| Typical source | IPMI, PCIe config space, FRU | JSON fields, env vars, user input |
-| Chapter | ch07 | ch11 |
-| Both use | `Result` — forcing the caller to handle invalid input |
+| 输入 | 原始字节（二进制协议） | 字符串（配置、CLI、JSON） |
+| 典型来源 | IPMI、PCIe 配置空间、FRU | JSON 字段、环境变量、用户输入 |
+| 章节 | ch07 | ch11 |
+| 都使用 | `Result` — 强制调用者处理无效输入 | |
 
 ***
 
-### Trick 6 — Const Generics for Compile-Time Size Validation
+### 技巧6 — Const 泛型用于编译时大小验证
 
-When hardware buffers, register banks, or protocol frames have fixed sizes,
-const generics let the compiler enforce them:
+当硬件缓冲区、寄存器组或协议帧具有固定大小时，const 泛型让编译器强制执行它们：
 
 ```rust,ignore
-/// A fixed-size register bank. The size is part of the type.
-/// `RegisterBank<256>` and `RegisterBank<4096>` are different types.
+/// 固定大小的寄存器组。大小是类型的一部分。
+/// `RegisterBank<256>` 和 `RegisterBank<4096>` 是不同类型。
 pub struct RegisterBank<const N: usize> {
     data: [u8; N],
 }
 
 impl<const N: usize> RegisterBank<N> {
-    /// Read a register at the given offset.
-    /// Compile-time: N is known, so the array size is fixed.
-    /// Runtime: only the offset is checked.
+    /// 读取给定偏移处的寄存器。
+    /// 编译时：N 是已知的，所以数组大小是固定的。
+    /// 运行时：只检查偏移量。
     pub fn read(&self, offset: usize) -> Option<u8> {
         self.data.get(offset).copied()
     }
 }
 
-// PCIe conventional config space: 256 bytes
+// PCIe 传统配置空间：256 字节
 type PciConfigSpace = RegisterBank<256>;
 
-// PCIe extended config space: 4096 bytes
+// PCIe 扩展配置空间：4096 字节
 type PcieExtConfigSpace = RegisterBank<4096>;
 
-// These are different types — can't accidentally pass one for the other:
+// 这些是不同类型 — 不能意外地将一个传递给另一个：
 fn read_extended_cap(config: &PcieExtConfigSpace, offset: usize) -> Option<u8> {
     config.read(offset)
 }
@@ -517,41 +477,36 @@ fn read_extended_cap(config: &PcieExtConfigSpace, offset: usize) -> Option<u8> {
 //                   ^^^^^^^^^^^ expected RegisterBank<4096>, found RegisterBank<256> ❌
 ```
 
-**Compile-time assertions with const generics:**
+**使用 const 泛型的编译时断言：**
 
 ```rust,ignore
-/// NVMe admin commands use 4096-byte buffers. Enforce at compile time.
+/// NVMe 管理命令使用 4096 字节缓冲区。在编译时强制执行。
 pub struct NvmeBuffer<const N: usize> {
     data: Box<[u8; N]>,
 }
 
 impl<const N: usize> NvmeBuffer<N> {
     pub fn new() -> Self {
-        // Runtime assertion: only 512 or 4096 allowed
+        // 运行时断言：只允许 512 或 4096
         assert!(N == 4096 || N == 512, "NVMe buffers must be 512 or 4096 bytes");
         NvmeBuffer { data: Box::new([0u8; N]) }
     }
 }
-// NvmeBuffer::<1024>::new();  // panics at runtime with this form
-// For true compile-time enforcement, see Trick 9 (const assertions).
+// NvmeBuffer::<1024>::new();  // 使用此形式会在运行时 panic
+// 对于真正的编译时强制执行，参见技巧 9（const 断言）。
 ```
 
-> **When to use:** Fixed-size protocol buffers (NVMe, PCIe config space),
-> DMA descriptors, hardware FIFO depths. Anywhere the size is a hardware
-> constant that should never vary at runtime.
+> **何时使用：** 固定大小的协议缓冲区（NVMe、PCIe 配置空间）、DMA 描述符、硬件 FIFO 深度。任何大小是硬件常量、在运行时不应改变的地方。
 
 ***
 
-### Trick 7 — Safe Wrappers Around `unsafe`
+### 技巧7 — `unsafe` 周围的安全包装器
 
-The project currently has zero `unsafe` blocks. But when you
-add MMIO register access, DMA, or FFI to accel-mgmt/accel-query, you'll need
-`unsafe`. The correct-by-construction approach: **wrap every `unsafe` block
-in a safe abstraction** so the unsafety is contained and auditable.
+项目目前零 `unsafe` 块。但当你添加 MMIO 寄存器访问、DMA 或 FFI 到 accel-mgmt/accel-query 时，你需要 `unsafe`。正确性构造方法：**将每个 `unsafe` 块包装在安全抽象中**，这样不安全就被包含且可审计。
 
 ```rust,ignore
-/// MMIO-mapped register. The pointer is valid for the lifetime of the mapping.
-/// All unsafe is contained in this module — callers use safe methods.
+/// MMIO 映射的寄存器。指针在映射的生命周期内有效。
+/// 所有 unsafe 都包含在这个模块中 — 调用者使用安全方法。
 pub struct MmioRegion {
     base: *mut u8,
     len: usize,
@@ -559,26 +514,26 @@ pub struct MmioRegion {
 
 impl MmioRegion {
     /// # Safety
-    /// - `base` must be a valid pointer to an MMIO-mapped region
-    /// - The region must remain mapped for the lifetime of this struct
-    /// - No other code may alias this region
+    /// - `base` 必须是 MMIO 映射区域的有效指针
+    /// - 区域必须在该结构体的生命周期内保持映射
+    /// - 其他代码不能别名此区域
     pub unsafe fn new(base: *mut u8, len: usize) -> Self {
         MmioRegion { base, len }
     }
 
-    /// Safe read — bounds checking prevents out-of-bounds MMIO access.
+    /// 安全读取 — 边界检查防止越界 MMIO 访问。
     pub fn read_u32(&self, offset: usize) -> Option<u32> {
         if offset + 4 > self.len { return None; }
-        // SAFETY: offset is bounds-checked above, base is valid per new() contract
+        // SAFETY: 偏移量在上方边界检查，base 根据 new() 契约有效
         Some(unsafe {
             core::ptr::read_volatile(self.base.add(offset) as *const u32)
         })
     }
 
-    /// Safe write — bounds checking prevents out-of-bounds MMIO access.
+    /// 安全写入 — 边界检查防止越界 MMIO 访问。
     pub fn write_u32(&self, offset: usize, value: u32) -> bool {
         if offset + 4 > self.len { return false; }
-        // SAFETY: offset is bounds-checked above, base is valid per new() contract
+        // SAFETY: 偏移量在上方边界检查，base 根据 new() 契约有效
         unsafe {
             core::ptr::write_volatile(self.base.add(offset) as *mut u32, value);
         }
@@ -587,7 +542,7 @@ impl MmioRegion {
 }
 ```
 
-**Combine with phantom types (ch09) for typed MMIO:**
+**结合幽灵类型（ch09）用于类型化 MMIO：**
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -604,7 +559,7 @@ impl TypedMmio<ReadOnly> {
     pub fn read_u32(&self, offset: usize) -> Option<u32> {
         self.region.read_u32(offset)
     }
-    // No write method — compile error if you try to write to a ReadOnly region
+    // 没有写方法 — 如果尝试写入 ReadOnly 区域则是编译错误
 }
 
 impl TypedMmio<ReadWrite> {
@@ -617,42 +572,39 @@ impl TypedMmio<ReadWrite> {
 }
 ```
 
-> **Guidelines for `unsafe` wrappers:**
+> **`unsafe` 包装器指南：**
 >
-> | Rule | Why |
+> | 规则 | 为什么 |
 > |------|-----|
-> | One `unsafe fn new()` with documented `# Safety` invariants | Caller takes responsibility once |
-> | All other methods are safe | Callers can't trigger UB |
-> | `# SAFETY:` comment on every `unsafe` block | Auditors can verify locally |
-> | Wrap in a module with `#[deny(unsafe_op_in_unsafe_fn)]` | Even inside `unsafe fn`, individual ops need `unsafe` |
-> | Run `cargo +nightly miri test` on the wrapper | Verify memory model compliance |
+> | 一个带文档化 `# Safety` 不变量的 `unsafe fn new()` | 调用者一次承担责任 |
+> | 所有其他方法都是安全的 | 调用者不能触发 UB |
+> | 每个 `unsafe` 块上的 `# SAFETY:` 注释 | 审计员可以本地验证 |
+> | 用 `#[deny(unsafe_op_in_unsafe_fn)]` 包装在模块中 | 即使在 `unsafe fn` 内部，每个操作也需要 `unsafe` |
+> | 在包装器上运行 `cargo +nightly miri test` | 验证内存模型合规性 |
 
 ---
 
-### ✅ Checkpoint: Tricks 1–7
+### ✅ 检查点：技巧 1–7
 
-You now have seven everyday tricks. Here's a quick scorecard:
+你现在有七个日常技巧。快速记分卡：
 
-| Trick | Bug class eliminated | Effort to adopt |
+| 技巧 | 消除的 bug 类别 | 采用工作量 |
 |:-----:|----------------------|:---------------:|
-| 1 | Sentinel confusion (0xFF) | Low — one `match` at the boundary |
-| 2 | Unauthorized trait impls | Low — add `Sealed` supertrait |
-| 3 | Broken consumers after enum growth | Low — one-line attribute |
-| 4 | Missing builder fields | Medium — extra type parameters |
-| 5 | Typos in string-typed config | Low — `impl FromStr` |
-| 6 | Wrong buffer sizes | Low — const generic parameter |
-| 7 | Unsafe scattered across codebase | Medium — wrapper module |
+| 1 | 哨兵值混淆（0xFF） | 低 — 边界处一个 `match` |
+| 2 | 未授权的 trait 实现 | 低 — 添加 `Sealed` 超 trait |
+| 3 | 枚举增长后破坏使用者 | 低 — 一行属性 |
+| 4 | 缺失构建器字段 | 中 — 额外的类型参数 |
+| 5 | 字符串类型配置中的拼写错误 | 低 — `impl FromStr` |
+| 6 | 错误的缓冲区大小 | 低 — const 泛型参数 |
+| 7 | unsafe 分散在代码库中 | 中 — 包装器模块 |
 
-Tricks 8–14 are **more advanced** — they touch async, const evaluation, session
-types, `Pin`, and `Drop`. Take a break here if you need one; the techniques
-above are already high-value, low-effort wins you can adopt tomorrow.
+技巧 8–14 **更高级** — 它们涉及 async、const 求值、会话类型、`Pin` 和 `Drop`。如果需要可以在这里休息一下；上面的技术已经是高价值、低工作量的胜利，你可以明天采用。
 
 ***
 
-### Trick 8 — Async Type-State Machines
+### 技巧8 — 异步类型状态机
 
-When hardware drivers use `async` (e.g., async BMC communication, async NVMe
-I/O), type-state still works — but ownership across `.await` points needs care:
+当硬件驱动使用 `async`（例如，async BMC 通信、async NVMe I/O）时，类型状态仍然有效——但在 `.await` 点之间的所有权需要小心：
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -671,21 +623,21 @@ impl AsyncSession<Idle> {
         AsyncSession { host: host.to_string(), _state: PhantomData }
     }
 
-    /// Transition Idle → Authenticating → Active.
-    /// The Session is consumed (moved into the future) across the .await.
+    /// 转换 Idle → Authenticating → Active。
+    /// Session 被消耗（移动到 future）跨过 .await。
     pub async fn authenticate(self, user: &str, pass: &str)
         -> Result<AsyncSession<Active>, String>
     {
-        // Phase 1: send credentials (consumes Idle session)
+        // 阶段 1：发送凭证（消耗 Idle session）
         let pending: AsyncSession<Authenticating> = AsyncSession {
             host: self.host,
             _state: PhantomData,
         };
 
-        // Simulate async BMC authentication
+        // 模拟 async BMC 认证
         // tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // Phase 2: return Active session
+        // 阶段 2：返回 Active session
         Ok(AsyncSession {
             host: pending.host,
             _state: PhantomData,
@@ -695,47 +647,41 @@ impl AsyncSession<Idle> {
 
 impl AsyncSession<Active> {
     pub async fn send_command(&mut self, cmd: &[u8]) -> Vec<u8> {
-        // async I/O here...
+        // 这里的 async I/O...
         vec![0x00]
     }
 }
 
-// Usage:
+// 用法：
 // let session = AsyncSession::new("192.168.1.100");
 // let mut session = session.authenticate("admin", "pass").await?;
 // let resp = session.send_command(&[0x04, 0x2D]).await;
 ```
 
-**Key rules for async type-state:**
+**async 类型状态的关键规则：**
 
-| Rule | Why |
+| 规则 | 为什么 |
 |------|-----|
-| Transition methods take `self` (by value), not `&mut self` | Ownership transfer works across `.await` |
-| Return `Result<NextState, (Error, PrevState)>` for recoverable errors | Caller can retry from the previous state |
-| Don't split state across multiple futures | One future owns one session |
-| Use `Send + 'static` bounds if using tokio::spawn | The session must be movable across threads |
+| 转换方法获取 `self`（按值），不是 `&mut self` | 所有权转移跨 `.await` 工作 |
+| 对于可恢复错误返回 `Result<NextState, (Error, PrevState)>` | 调用者可以从上一个状态重试 |
+| 不要跨多个 future 拆分状态 | 一个 future 拥有一个 session |
+| 如果使用 tokio::spawn，使用 `Send + 'static` 边界 | session 必须可以跨线程移动 |
 
-> **Caveat:** If you need the *previous* state back on error (to retry),
-> return `Result<AsyncSession<Active>, (Error, AsyncSession<Idle>)>` so
-> the caller gets ownership back. Without this, a failed `.await` drops the
-> session permanently.
+> **警告：** 如果你需要在错误时获取 *上一个* 状态（重试），返回 `Result<AsyncSession<Active>, (Error, AsyncSession<Idle>)>` 这样调用者获取所有权。没有这个，失败的 `.await` 会永久丢弃 session。
 
 ***
 
-### Trick 9 — Refinement Types via Const Assertions
+### 技巧9 — 通过 Const 断言的精化类型
 
-When a numeric constraint is a compile-time invariant (not runtime data),
-use `const` evaluation to enforce it. This differs from Trick 6 (which
-provides type-level size distinctions) — here we *reject invalid values*
-at compile time:
+当数值约束是编译时不变量（不是运行时数据）时，使用 `const` 求值来强制执行。这与技巧 6（提供类型级大小区分）不同——这里我们在编译时 *拒绝无效值*：
 
 ```rust,ignore
-/// A sensor ID that must be in the IPMI SDR range (0x01..=0xFE).
-/// The constraint is checked at compile time when `N` is const.
+/// 必须在 IPMI SDR 范围内（0x01..=0xFE）的传感器 ID。
+/// 当 N 是 const 时，约束在编译时检查。
 pub struct SdrSensorId<const N: u8>;
 
 impl<const N: u8> SdrSensorId<N> {
-    /// Compile-time validation: panics during compilation if N is out of range.
+    /// 编译时验证：如果 N 超出范围，在编译期间 panic。
     pub const fn validate() {
         assert!(N >= 0x01, "Sensor ID must be >= 0x01");
         assert!(N <= 0xFE, "Sensor ID must be <= 0xFE (0xFF is reserved)");
@@ -746,19 +692,19 @@ impl<const N: u8> SdrSensorId<N> {
     pub const fn value() -> u8 { N }
 }
 
-// Usage:
+// 用法：
 fn read_sensor_const<const N: u8>() -> f64 {
-    let _ = SdrSensorId::<N>::VALIDATED;  // compile-time check
-    // read sensor N...
+    let _ = SdrSensorId::<N>::VALIDATED;  // 编译时检查
+    // 读取传感器 N...
     42.0
 }
 
-// read_sensor_const::<0x20>();   // ✅ compiles — 0x20 is valid
-// read_sensor_const::<0x00>();   // ❌ compile error — "Sensor ID must be >= 0x01"
-// read_sensor_const::<0xFF>();   // ❌ compile error — 0xFF is reserved
+// read_sensor_const::<0x20>();   // ✅ 编译 — 0x20 是有效的
+// read_sensor_const::<0x00>();   // ❌ 编译错误 — "Sensor ID must be >= 0x01"
+// read_sensor_const::<0xFF>();   // ❌ 编译错误 — 0xFF 是保留的
 ```
 
-**Simpler form — bounded fan IDs:**
+**更简单的形式 — 有界风扇 ID：**
 
 ```rust,ignore
 pub struct BoundedFanId<const N: u8>;
@@ -773,59 +719,56 @@ impl<const N: u8> BoundedFanId<N> {
 }
 
 // BoundedFanId::<3>::id();   // ✅
-// BoundedFanId::<10>::id();  // ❌ compile error
+// BoundedFanId::<10>::id();  // ❌ 编译错误
 ```
 
-> **When to use:** Hardware-defined fixed IDs (sensor IDs, fan slots, PCIe
-> slot numbers) known at compile time. When the value comes from runtime data
-> (config file, user input), use `TryFrom` / `FromStr` (ch07, Trick 5) instead.
+> **何时使用：** 编译时已知的硬件定义固定 ID（传感器 ID、风扇槽位、PCIe 槽号）。当值来自运行时数据（配置文件、用户输入）时，使用 `TryFrom` / `FromStr`（ch07、技巧 5）代替。
 
 ***
 
-### Trick 10 — Session Types for Channel Communication
+### 技巧10 — 用于通道通信的会话类型
 
-When two components communicate over a channel (e.g., diagnostic orchestrator ↔
-worker thread), **session types** encode the protocol in the type system:
+当两个组件通过通道通信时（例如，诊断 orchestrator ↔ 工作线程），**会话类型** 在类型系统中编码协议：
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Protocol: Client sends Request, Server sends Response, then done.
+// 协议：客户端发送 Request，服务器发送 Response，然后完成。
 pub struct SendRequest;
 pub struct RecvResponse;
 pub struct Done;
 
-/// A typed channel endpoint. `S` is the current protocol state.
+/// 类型化通道端点。`S` 是当前协议状态。
 pub struct Chan<S> {
-    // In real code: wraps a mpsc::Sender/Receiver pair
+    // 真实代码：包装 mpsc::Sender/Receiver 对
     _state: PhantomData<S>,
 }
 
 impl Chan<SendRequest> {
-    /// Send a request — transitions to RecvResponse state.
+    /// 发送请求 — 转换到 RecvResponse 状态。
     pub fn send(self, request: DiagRequest) -> Chan<RecvResponse> {
-        // ... send on channel ...
+        // ... 在通道上发送 ...
         Chan { _state: PhantomData }
     }
 }
 
 impl Chan<RecvResponse> {
-    /// Receive a response — transitions to Done state.
+    /// 接收响应 — 转换到 Done 状态。
     pub fn recv(self) -> (DiagResponse, Chan<Done>) {
-        // ... recv from channel ...
+        // ... 从通道接收 ...
         (DiagResponse { passed: true }, Chan { _state: PhantomData })
     }
 }
 
 impl Chan<Done> {
-    /// Closing the channel — only possible when the protocol is complete.
+    /// 关闭通道 — 仅在协议完成时才可能。
     pub fn close(self) { /* drop */ }
 }
 
 pub struct DiagRequest { pub test_name: String }
 pub struct DiagResponse { pub passed: bool }
 
-// The protocol MUST be followed in order:
+// 协议必须按顺序遵循：
 fn orchestrator(chan: Chan<SendRequest>) {
     let chan = chan.send(DiagRequest { test_name: "gpu_stress".into() });
     let (response, chan) = chan.recv();
@@ -833,37 +776,31 @@ fn orchestrator(chan: Chan<SendRequest>) {
     println!("Result: {}", if response.passed { "PASS" } else { "FAIL" });
 }
 
-// Can't recv before send:
+// 不能在发送前接收：
 // fn wrong_order(chan: Chan<SendRequest>) {
-//     chan.recv();  // ❌ no method `recv` on Chan<SendRequest>
+//     chan.recv();  // ❌ Chan<SendRequest> 上没有方法 `recv`
 // }
 ```
 
-> **When to use:** Inter-thread diagnostic protocols, BMC command sequences,
-> any request-response pattern where order matters. For complex multi-message
-> protocols, consider the [`session-types`](https://crates.io/crates/session-types)
-> or [`rumpsteak`](https://crates.io/crates/rumpsteak) crates.
+> **何时使用：** 线程间诊断协议、BMC 命令序列、任何顺序重要的请求-响应模式。对于复杂的多消息协议，考虑 [`session-types`](https://crates.io/crates/session-types) 或 [`rumpsteak`](https://crates.io/crates/rumpsteak) crate。
 
 ***
 
-### Trick 11 — `Pin` for Self-Referential State Machines
+### 技巧11 — `Pin` 用于自引用状态机
 
-Some type-state machines need to hold references into their own data (e.g., a
-parser that tracks a position within its owned buffer). Rust normally forbids
-this because moving the struct would invalidate the internal pointer. `Pin<T>`
-solves this by guaranteeing the value **will not be moved**:
+某些类型状态机需要持有指向自身数据的引用（例如，在其拥有的缓冲区中跟踪位置的解析器）。Rust 通常禁止这样做，因为移动结构体会使内部指针无效。`Pin<T>` 通过保证值 **不会被移动** 来解决这个问题：
 
 ```rust,ignore
 use std::pin::Pin;
 use std::marker::PhantomPinned;
 
-/// A streaming parser that holds a reference into its own buffer.
-/// Once pinned, it cannot be moved — the internal reference stays valid.
+/// 流式解析器，持有指向自身缓冲区的引用。
+/// 一旦固定，就不能移动 — 内部引用保持有效。
 pub struct StreamParser {
     buffer: Vec<u8>,
-    /// Points into `buffer`. Only valid while pinned.
+    /// 指向 `buffer`。仅在固定时有效。
     cursor: *const u8,
-    _pin: PhantomPinned,  // opts out of Unpin — prevents accidental unpinning
+    _pin: PhantomPinned,  // 选择退出 Unpin — 防止意外取消固定
 }
 
 impl StreamParser {
@@ -875,9 +812,9 @@ impl StreamParser {
         };
         let mut boxed = Box::pin(parser);
 
-        // Set cursor to point into the pinned buffer
+        // 设置 cursor 指向固定缓冲区
         let cursor = boxed.buffer.as_ptr();
-        // SAFETY: we have exclusive access and the parser is pinned
+        // SAFETY：我们有独占访问权且解析器已固定
         unsafe {
             let mut_ref = Pin::as_mut(&mut boxed);
             Pin::get_unchecked_mut(mut_ref).cursor = cursor;
@@ -886,52 +823,47 @@ impl StreamParser {
         boxed
     }
 
-    /// Read the next byte — only callable through Pin<&mut Self>.
+    /// 读取下一个字节 — 仅可通过 Pin<&mut Self> 调用。
     pub fn next_byte(self: Pin<&mut Self>) -> Option<u8> {
-        // The parser can't be moved, so cursor remains valid
+        // 解析器不能被移动，所以 cursor 保持有效
         if self.cursor.is_null() { return None; }
-        // ... advance cursor through buffer ...
+        // ... 通过缓冲区推进 cursor ...
         Some(42) // stub
     }
 }
 
-// Usage:
+// 用法：
 // let mut parser = StreamParser::new(vec![0x01, 0x02, 0x03]);
 // let byte = parser.as_mut().next_byte();
 ```
 
-**Key insight:** `Pin` is the correct-by-construction solution to the
-self-referential struct problem. Without it, you'd need `unsafe` and manual
-lifetime tracking. With it, the compiler prevents moves and the internal
-pointer invariant is maintained.
+**关键见解：** `Pin` 是自引用结构体问题的正确性构造解决方案。没有它，你需要 `unsafe` 和手动生命周期跟踪。有了它，编译器防止移动，内部指针不变量被维护。
 
-| Use `Pin` when… | Don't use `Pin` when… |
+| 使用 `Pin` 当… | 不要使用 `Pin` 当… |
 |-----------------|----------------------|
-| State machine holds intra-struct references | All fields are independently owned |
-| Async futures that borrow across `.await` | No self-referencing needed |
-| DMA descriptors that must not relocate in memory | Data can be freely moved |
-| Hardware ring buffers with internal cursor | Simple index-based iteration works |
+| 状态机持有结构内引用 | 所有字段独立拥有 |
+| 跨 `.await` 借用的 async future | 不需要自引用 |
+| 不能在内存中重新定位的 DMA 描述符 | 数据可以自由移动 |
+| 具有内部游标的硬件环形缓冲区 | 基于简单索引的迭代工作 |
 
 ***
 
-### Trick 12 — RAII / `Drop` as a Correctness Guarantee
+### 技巧12 — RAII / `Drop` 作为正确性保证
 
-Rust's `Drop` trait is a correct-by-construction mechanism: cleanup code **cannot
-be forgotten** because the compiler inserts it automatically. This is especially
-valuable for hardware resources that must be released exactly once.
+Rust 的 `Drop` trait 是一个正确性构造机制：清理代码 **不能被遗忘**，因为编译器自动插入它。这对于必须精确释放一次的硬件资源特别有价值。
 
 ```rust,ignore
 use std::io;
 
-/// An IPMI session that MUST be closed when done.
-/// The `Drop` impl guarantees cleanup even on panic or early `?` return.
+/// 一个 IPMI 会话，完成时必须关闭。
+/// `Drop` 实现保证即使在 panic 或提前 `?` 返回时也会清理。
 pub struct IpmiSession {
     handle: u32,
 }
 
 impl IpmiSession {
     pub fn open(host: &str) -> io::Result<Self> {
-        // ... negotiate IPMI session ...
+        // ... 协商 IPMI 会话 ...
         Ok(IpmiSession { handle: 42 })
     }
 
@@ -942,39 +874,38 @@ impl IpmiSession {
 
 impl Drop for IpmiSession {
     fn drop(&mut self) {
-        // Close Session command: always runs, even on panic/early-return.
-        // In C, forgetting CloseSession() leaks a BMC session slot.
+        // 关闭会话命令：始终运行，即使在 panic/提前返回时。
+        // 在 C 中，忘记 CloseSession() 会泄漏 BMC 会话槽。
         let _ = self.send_raw(&[0x06, 0x3C]);
         eprintln!("[RAII] session {} closed", self.handle);
     }
 }
-// Usage:
+// 用法：
 fn diagnose(host: &str) -> io::Result<()> {
     let session = IpmiSession::open(host)?;
     session.send_raw(&[0x04, 0x2D, 0x20])?;
-    // No explicit close needed — Drop runs here automatically
+    // 不需要显式关闭 — Drop 在此自动运行
     Ok(())
-    // Even if send_raw returns Err(...), the session is still closed.
+    // 即使 send_raw 返回 Err(...)，会话仍然关闭。
 }
 ```
 
-**The C/C++ failure mode that RAII eliminates:**
+**RAII 消除的 C/C++ 失败模式：**
 
 ```text
 C:     session = ipmi_open(host);
        ipmi_send(session, data);
-       if (error) return -1;        // 🐛 leaked session — forgot close()
+       if (error) return -1;        // 🐛 泄漏的会话 — 忘记 close()
        ipmi_close(session);
 
 Rust:  let session = IpmiSession::open(host)?;
-       session.send_raw(data)?;     // ✅ Drop runs on ? return
-       // Drop always runs — leak is impossible
+       session.send_raw(data)?;     // ✅ Drop 在 ? 返回时运行
+       // Drop 始终运行 — 泄漏不可能
 ```
 
-**Combine RAII with type-state (ch05) for ordered cleanup:**
+**将 RAII 与类型状态（ch05）结合用于有序清理：**
 
-You cannot specialize `Drop` on a generic parameter (Rust error E0366).
-Instead, use **separate wrapper types** per state:
+你不能专门化泛型参数上的 `Drop`（Rust 错误 E0366）。相反，使用 **每个状态单独的包装类型**：
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -989,64 +920,57 @@ pub struct GpuContext<S> {
 
 impl GpuContext<Open> {
     pub fn lock_clocks(self) -> LockedGpu {
-        // ... lock GPU clocks for stable benchmarking ...
+        // ... 锁定 GPU 时钟以进行稳定基准测试 ...
         LockedGpu { device_id: self.device_id }
     }
 }
 
-/// Separate type for the locked state — has its own Drop.
-/// We can't do `impl Drop for GpuContext<Locked>` (E0366),
-/// so we use a distinct wrapper that owns the locked resource.
+/// 锁定状态的单独类型 — 有自己的 Drop。
+/// 我们不能做 `impl Drop for GpuContext<Locked>`（E0366），
+/// 所以我们使用拥有锁定资源的不同包装器。
 pub struct LockedGpu {
     device_id: u32,
 }
 
 impl LockedGpu {
     pub fn run_benchmark(&self) -> f64 {
-        // ... benchmark with locked clocks ...
+        // ... 使用锁定的时钟进行基准测试 ...
         42.0
     }
 }
 
 impl Drop for LockedGpu {
     fn drop(&mut self) {
-        // Unlock clocks on drop — only fires for the locked wrapper.
+        // 在 drop 时解锁时钟 — 仅对锁定包装器触发。
         eprintln!("[RAII] GPU {} clocks unlocked", self.device_id);
     }
 }
 
-// GpuContext<Open> has no special Drop — no clocks to unlock.
-// LockedGpu always unlocks on drop, even on panic or early return.
+// GpuContext<Open> 没有特殊的 Drop — 没有要解锁的时钟。
+// LockedGpu 在 drop 时始终解锁，即使在 panic 或提前返回时。
 ```
 
-> **Why not `impl Drop for GpuContext<Locked>`?** Rust requires `Drop` impls
-> to apply to *all* instantiations of a generic type. To get state-specific
-> cleanup, use one of:
+> **为什么不是 `impl Drop for GpuContext<Locked>`？** Rust 要求 `Drop` 实现应用于泛型类型的 *所有* 实例化。要获取特定状态的清理，使用以下之一：
 >
-> | Approach | Pros | Cons |
+> | 方法 | 优点 | 缺点 |
 > |----------|------|------|
-> | Separate wrapper type (above) | Clean, zero-cost | Extra type name |
-> | Generic `Drop` + runtime `TypeId` check | Single type | Requires `'static`, runtime cost |
-> | `enum` state with exhaustive match in `Drop` | Single generic type | Runtime dispatch, less type safety |
+> | 单独的包装类型（上面） | 干净，零成本 | 额外的类型名称 |
+> | 泛型 `Drop` + 运行时 `TypeId` 检查 | 单一类型 | 需要 `'static`，运行时成本 |
+> | 带穷尽 match 的 `enum` 状态在 `Drop` 中 | 单一泛型类型 | 运行时分发，较少类型安全 |
 
-> **When to use:** BMC sessions, GPU clock locks, DMA buffer mappings, file
-> handles, mutex guards, any resource with a mandatory release step. If you
-> find yourself writing `fn close(&mut self)` or `fn cleanup()`, it should
-> almost certainly be `Drop` instead.
+> **何时使用：** BMC 会话、GPU 时钟锁、DMA 缓冲区映射、文件句柄、互斥锁守卫、任何有强制释放步骤的资源。如果你发现自己写 `fn close(&mut self)` 或 `fn cleanup()`，它几乎肯定应该是 `Drop` 而不是。
 
 ***
 
-### Trick 13 — Error Type Hierarchies as Correctness
+### 技巧13 — 错误类型层次结构作为正确性
 
-Well-designed error types prevent silent error swallowing and ensure callers
-handle each failure mode appropriately. Using `thiserror` for structured errors
-is a correct-by-construction pattern: the compiler forces exhaustive matching.
+良好设计的错误类型防止静默错误吞没，并确保调用者适当处理每个失败模式。使用 `thiserror` 用于结构化错误是一个正确性构造模式：编译器强制穷尽匹配。
 
 ```toml
 # Cargo.toml
 [dependencies]
 thiserror = "1"
-# For application-level error handling (optional):
+# 用于应用级错误处理（可选）：
 # anyhow = "1"
 ```
 
@@ -1080,10 +1004,9 @@ pub enum IpmiError {
     CompletionCode(u8),
 }
 
-// Callers MUST handle each variant — no silent swallowing:
+// 调用者必须处理每个变体 — 没有静默吞没：
 fn run_thermal_check() -> Result<(), DiagError> {
-    // If this returns IpmiError, it's automatically converted to DiagError::Ipmi
-    // via the #[from] attribute.
+    // 如果这返回 IpmiError，它通过 #[from] 属性自动转换为 DiagError::Ipmi
     let temp = read_cpu_temp()?;
     if temp > 105.0 {
         return Err(DiagError::SensorRange {
@@ -1097,53 +1020,48 @@ fn run_thermal_check() -> Result<(), DiagError> {
 # fn read_cpu_temp() -> Result<f64, DiagError> { Ok(42.0) }
 ```
 
-**Why this is correct-by-construction:**
+**为什么这是正确性构造：**
 
-| Without structured errors | With `thiserror` enums |
+| 没有结构化错误 | 使用 `thiserror` 枚举 |
 |--------------------------|----------------------|
 | `fn op() -> Result<T, String>` | `fn op() -> Result<T, DiagError>` |
-| Caller gets opaque string | Caller matches on specific variants |
-| Can't distinguish auth failure from timeout | `DiagError::Ipmi(IpmiError::AuthFailed)` vs `Timeout` |
-| Logging swallows the error | `match` forces handling each case |
-| New error variant → nobody notices | New variant → compiler warns unmatched arms |
+| 调用者得到不透明字符串 | 调用者匹配特定变体 |
+| 无法区分认证失败和超时 | `DiagError::Ipmi(IpmiError::AuthFailed)` vs `Timeout` |
+| 日志吞没错误 | `match` 强制处理每个情况 |
+| 新错误变体 → 没人注意到 | 新变体 → 编译器警告未匹配 arm |
 
-**The `anyhow` vs `thiserror` decision:**
+**`anyhow` vs `thiserror` 决策：**
 
-| Use `thiserror` when… | Use `anyhow` when… |
+| 使用 `thiserror` 当… | 使用 `anyhow` 当… |
 |-----------------------|-------------------|
-| Writing a library/crate | Writing a binary/CLI |
-| Callers need to match on error variants | Callers just log and exit |
-| Error types are part of the public API | Internal error plumbing |
-| `protocol_lib`, `accel_diag`, `thermal_diag` | `diag_tool` main binary |
+| 编写库/crate | 编写二进制/CLI |
+| 调用者需要匹配错误变体 | 调用者只记录和退出 |
+| 错误类型是公共 API 的一部分 | 内部错误管道 |
+| `protocol_lib`, `accel_diag`, `thermal_diag` | `diag_tool` 主二进制 |
 
-> **When to use:** Every crate in the workspace should define its own error
-> enum with `thiserror`. The top-level binary crate can use `anyhow` to
-> aggregate them. This gives library callers compile-time error handling
-> guarantees while keeping the binary ergonomic.
+> **何时使用：** 工作空间中的每个 crate 都应该用 `thiserror` 定义自己的错误枚举。顶层二进制 crate 可以使用 `anyhow` 来聚合它们。这为库调用者提供编译时错误处理保证，同时保持二进制的人体工学。
 
 ***
 
-### Trick 14 — `#[must_use]` for Enforcing Consumption
+### 技巧14 — `#[must_use]` 用于强制消费
 
-The `#[must_use]` attribute turns ignored return values into compiler warnings.
-This is a lightweight correct-by-construction tool that pairs with every pattern
-in this guide:
+`#[must_use]` 属性将忽略的返回值转换为编译器警告。这是一个轻量级正确性构造工具，与本指南中的每个模式配对：
 
 ```rust,ignore
-/// A calibration token that MUST be used — dropping it silently is a bug.
+/// 一个必须使用的校准令牌 — 静默丢弃它是 bug。
 #[must_use = "calibration token must be passed to calibrate(), not dropped"]
 pub struct CalibrationToken {
     _private: (),
 }
 
-/// A diagnostic result that MUST be checked — ignoring failures is a bug.
+/// 一个必须检查的诊断结果 — 忽略失败是 bug。
 #[must_use = "diagnostic result must be inspected for failures"]
 pub struct DiagResult {
     pub passed: bool,
     pub details: String,
 }
 
-/// Functions that return important values should be marked too:
+/// 返回重要值的函数也应标记：
 #[must_use = "the authenticated session must be used or explicitly closed"]
 pub fn authenticate(user: &str, pass: &str) -> Result<Session, AuthError> {
     // ...
@@ -1154,7 +1072,7 @@ pub fn authenticate(user: &str, pass: &str) -> Result<Session, AuthError> {
 # pub struct AuthError;
 ```
 
-**What the compiler tells you:**
+**编译器告诉你：**
 
 ```text
 warning: unused `CalibrationToken` that must be used
@@ -1166,28 +1084,24 @@ warning: unused `CalibrationToken` that must be used
    = note: calibration token must be passed to calibrate(), not dropped
 ```
 
-**Apply `#[must_use]` to these patterns:**
+**将这些模式应用 `#[must_use]`：**
 
-| Pattern | What to annotate | Why |
+| 模式 | 要注解的内容 | 为什么 |
 |---------|-----------------|-----|
-| Single-Use Tokens (ch03) | `CalibrationToken`, `FusePayload` | Dropping without use = logic bug |
-| Capability Tokens (ch04) | `AdminToken` | Authenticating but ignoring the token |
-| Type-State transitions | Return type of `authenticate()`, `activate()` | Session created but never used |
-| Results | `DiagResult`, `SensorReading` | Silent failure swallowing |
-| RAII handles (Trick 12) | `IpmiSession`, `LockedGpu` | Opening but not using a resource |
+| 单次使用令牌（ch03） | `CalibrationToken`, `FusePayload` | 丢弃而不使用 = 逻辑 bug |
+| 能力令牌（ch04） | `AdminToken` | 认证但忽略令牌 |
+| 类型状态转换 | `authenticate()`, `activate()` 的返回类型 | 创建但从未使用的会话 |
+| 结果 | `DiagResult`, `SensorReading` | 静默失败吞没 |
+| RAII 句柄（技巧 12） | `IpmiSession`, `LockedGpu` | 打开但不使用资源 |
 
-> **Rule of thumb:** If dropping a value without using it is always a bug,
-> add `#[must_use]`. If it's sometimes intentional (e.g., a `Vec`), don't.
-> The `_` prefix (`let _ = foo()`) explicitly acknowledges and silences the
-> warning — this is fine when the drop is intentional.
+> **经验法则：** 如果丢弃值而不使用它永远是 bug，添加 `#[must_use]`。如果有时是有意的（例如 `Vec`），不要。`_` 前缀（`let _ = foo()`）显式确认并静默警告——当丢弃是有意的时候这是可以的。
 
-## Key Takeaways
+## 关键要点
 
-1. **Sentinel → Option at the boundary** — convert magic values to `Option` on parse; the compiler forces callers to handle `None`.
-2. **Sealed traits close the implementation loophole** — private supertrait means only your crate can implement the trait.
-3. **`#[non_exhaustive]` + `#[must_use]` are one-line, high-value annotations** — add them to evolving enums and consumed tokens.
-4. **Typestate builders enforce required fields** — `finish()` only exists when all required type parameters are `Set`.
-5. **Each trick targets a specific bug class** — adopt them incrementally; no trick requires rewriting your architecture.
+1. **边界处的哨兵值 → Option** — 在解析时将魔法值转换为 `Option`；编译器强制调用者处理 `None`。
+2. **密封 trait 关闭实现漏洞** — 私有超 trait 意味着只有你的 crate 可以实现该 trait。
+3. **`#[non_exhaustive]` + `#[must_use]` 是一行高价值注解** — 将它们添加到演进枚举和消费令牌。
+4. **类型状态构建器强制必填字段** — `finish()` 仅在所有必填类型参数都是 `Set` 时存在。
+5. **每个技巧针对特定的 bug 类别** — 增量采用；没有技巧需要重写你的架构。
 
 ---
-

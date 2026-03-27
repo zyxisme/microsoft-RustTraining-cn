@@ -1,21 +1,20 @@
-# Putting It All Together — A Production CI/CD Pipeline 🟡
+# 整合一切 — 生产 CI/CD 流水线 🟡
 
-> **What you'll learn:**
-> - Structuring a multi-stage GitHub Actions CI workflow (check → test → coverage → security → cross → release)
-> - Caching strategies with `rust-cache` and `save-if` tuning
-> - Running Miri and sanitizers on a nightly schedule
-> - Task automation with `Makefile.toml` and pre-commit hooks
-> - Automated releases with `cargo-dist`
+> **你将学到：**
+> - 构建多阶段 GitHub Actions CI 工作流（check → test → coverage → security → cross → release）
+> - 使用 `rust-cache` 和 `save-if` 调优的缓存策略
+> - 在 nightly 计划上运行 Miri 和 sanitizer
+> - 使用 Makefile.toml 和 pre-commit hooks 进行任务自动化
+> - 使用 `cargo-dist` 自动发布
 >
-> **Cross-references:** [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) · [Cross-Compilation](ch02-cross-compilation-one-source-many-target.md) · [Benchmarking](ch03-benchmarking-measuring-what-matters.md) · [Coverage](ch04-code-coverage-seeing-what-tests-miss.md) · [Miri/Sanitizers](ch05-miri-valgrind-and-sanitizers-verifying-u.md) · [Dependencies](ch06-dependency-management-and-supply-chain-s.md) · [Release Profiles](ch07-release-profiles-and-binary-size.md) · [Compile-Time Tools](ch08-compile-time-and-developer-tools.md) · [`no_std`](ch09-no-std-and-feature-verification.md) · [Windows](ch10-windows-and-conditional-compilation.md)
+> **交叉引用：** [构建脚本](ch01-build-scripts-buildrs-in-depth.md) · [交叉编译](ch02-cross-compilation-one-source-many-target.md) · [基准测试](ch03-benchmarking-measuring-what-matters.md) · [覆盖率](ch04-code-coverage-seeing-what-tests-miss.md) · [Miri/Sanitizer](ch05-miri-valgrind-and-sanitizers-verifying-u.md) · [依赖管理](ch06-dependency-management-and-supply-chain-s.md) · [发布 Profiles](ch07-release-profiles-and-binary-size.md) · [编译时工具](ch08-compile-time-and-developer-tools.md) · [`no_std`](ch09-no-std-and-feature-verification.md) · [Windows](ch10-windows-and-conditional-compilation.md)
 
-Individual tools are useful. A pipeline that orchestrates them automatically on
-every push is transformative. This chapter assembles the tools from chapters 1–10
-into a cohesive CI/CD workflow.
+单独的工具有用。在每次推送时自动编排它们的流水线是变革性的。
+本章将第 1-10 章的工具组装成一个内聚的 CI/CD 工作流。
 
-### The Complete GitHub Actions Workflow
+### 完整的 GitHub Actions 工作流
 
-A single workflow file that runs all verification stages in parallel:
+一个在并行运行所有验证阶段的单一工作流文件：
 
 ```yaml
 # .github/workflows/ci.yml
@@ -29,13 +28,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_ENCODED_RUSTFLAGS: "-Dwarnings"  # Treat warnings as errors (top-level crate only)
-  # NOTE: Unlike RUSTFLAGS, CARGO_ENCODED_RUSTFLAGS does not affect build scripts
-  # or proc-macros, which avoids false failures from third-party warnings.
-  # Use RUSTFLAGS="-Dwarnings" instead if you want to enforce on build scripts too.
+  CARGO_ENCODED_RUSTFLAGS: "-Dwarnings"  # 将警告视为错误（仅顶层 crate）
+  # 注意：与 RUSTFLAGS 不同，CARGO_ENCODED_RUSTFLAGS 不影响构建脚本
+  # 或 proc-macros，这避免了对第三方警告的虚假失败。
+  # 如果也想对构建脚本强制执行，使用 RUSTFLAGS="-Dwarnings"。
 
 jobs:
-  # ─── Stage 1: Fast feedback (< 2 min) ───
+  # ─── 阶段 1：快速反馈（< 2 分钟） ───
   check:
     name: Check + Clippy + Format
     runs-on: ubuntu-latest
@@ -45,18 +44,18 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2  # Cache dependencies
+      - uses: Swatinem/rust-cache@v2  # 缓存依赖
 
-      - name: Check compilation
+      - name: 检查编译
         run: cargo check --workspace --all-targets --all-features
 
       - name: Clippy lints
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-      - name: Formatting
+      - name: 格式化
         run: cargo fmt --all -- --check
 
-  # ─── Stage 2: Tests (< 5 min) ───
+  # ─── 阶段 2：测试（< 5 分钟） ───
   test:
     name: Test (${{ matrix.os }})
     needs: check
@@ -69,13 +68,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Run tests
+      - name: 运行测试
         run: cargo test --workspace
 
-      - name: Run doc tests
+      - name: 运行文档测试
         run: cargo test --workspace --doc
 
-  # ─── Stage 3: Cross-compilation (< 10 min) ───
+  # ─── 阶段 3：交叉编译（< 10 分钟） ───
   cross:
     name: Cross (${{ matrix.target }})
     needs: check
@@ -94,29 +93,29 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install musl-tools
+      - name: 安装 musl-tools
         if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
 
-      - name: Install cross
+      - name: 安装 cross
         if: matrix.use_cross
         uses: taiki-e/install-action@cross
 
-      - name: Build (native)
+      - name: 构建（原生）
         if: "!matrix.use_cross"
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build (cross)
+      - name: 构建（交叉）
         if: matrix.use_cross
         run: cross build --release --target ${{ matrix.target }}
 
-      - name: Upload artifact
+      - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/diag_tool
 
-  # ─── Stage 4: Coverage (< 10 min) ───
+  # ─── 阶段 4：覆盖率（< 10 分钟） ───
   coverage:
     name: Code Coverage
     needs: check
@@ -128,19 +127,19 @@ jobs:
           components: llvm-tools-preview
       - uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate coverage
+      - name: 生成覆盖率
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
-      - name: Enforce minimum coverage
+      - name: 执行最低覆盖率
         run: cargo llvm-cov --workspace --fail-under-lines 75
 
-      - name: Upload to Codecov
+      - name: 上传到 Codecov
         uses: codecov/codecov-action@v4
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  # ─── Stage 5: Safety verification (< 15 min) ───
+  # ─── 阶段 5：安全验证（< 15 分钟） ───
   miri:
     name: Miri
     needs: check
@@ -151,12 +150,12 @@ jobs:
         with:
           components: miri
 
-      - name: Run Miri
+      - name: 运行 Miri
         run: cargo miri test --workspace
         env:
           MIRIFLAGS: "-Zmiri-backtrace=full"
 
-  # ─── Stage 6: Benchmarks (PR only, < 10 min) ───
+  # ─── 阶段 6：基准测试（仅 PR，< 10 分钟） ───
   bench:
     name: Benchmarks
     if: github.event_name == 'pull_request'
@@ -166,10 +165,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Run benchmarks
+      - name: 运行基准测试
         run: cargo bench -- --output-format bencher | tee bench.txt
 
-      - name: Compare with baseline
+      - name: 与基线比较
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'cargo'
@@ -179,7 +178,7 @@ jobs:
           comment-on-alert: true
 ```
 
-**Pipeline execution flow:**
+**流水线执行流程：**
 
 ```text
                     ┌─────────┐
@@ -192,72 +191,69 @@ jobs:
        │ (2×) │  │ (2×) │ │        │ │      │ │(PR)  │
        └──────┘  └──────┘ └────────┘ └──────┘ └──────┘
          3 min    8 min     8 min     12 min    5 min
-                                                        
-Total wall-clock: ~14 min (parallel after check gate)
+
+总墙上时间：~14 分钟（通过检查门控后的并行）
 ```
 
-### CI Caching Strategies
+### CI 缓存策略
 
-[`Swatinem/rust-cache@v2`](https://github.com/Swatinem/rust-cache) is the
-standard Rust CI cache action. It caches `~/.cargo` and `target/` between
-runs, but large workspaces need tuning:
+[`Swatinem/rust-cache@v2`](https://github.com/Swatinem/rust-cache) 是标准的 Rust CI 缓存 action。
+它缓存 `~/.cargo` 和 `target/` 在运行之间，但大型工作空间需要调优：
 
 ```yaml
-# Basic (what we use above)
+# 基本（我们在上面使用的）
 - uses: Swatinem/rust-cache@v2
 
-# Tuned for a large workspace:
+# 为大型工作空间调优：
 - uses: Swatinem/rust-cache@v2
   with:
-    # Separate caches per job — prevents test artifacts bloating build cache
+    # 每个作业独立缓存 — 防止测试产物使构建缓存膨胀
     prefix-key: "v1-rust"
     key: ${{ matrix.os }}-${{ matrix.target || 'default' }}
-    # Only save cache on main branch (PRs read but don't write)
+    # 只在 main 分支保存缓存（PR 读取但不写入）
     save-if: ${{ github.ref == 'refs/heads/main' }}
-    # Cache Cargo registry + git checkouts + target dir
+    # 缓存 Cargo registry + git checkouts + target 目录
     cache-targets: true
     cache-all-crates: true
 ```
 
-**Cache invalidation gotchas:**
+**缓存失效注意事项：**
 
-| Problem | Fix |
+| 问题 | 修复 |
 |---------|-----|
-| Cache grows unbounded (>5 GB) | Set `prefix-key: "v2-rust"` to force fresh cache |
-| Different features pollute cache | Use `key: ${{ hashFiles('**/Cargo.lock') }}` |
-| PR cache overwrites main | Set `save-if: ${{ github.ref == 'refs/heads/main' }}` |
-| Cross-compilation targets bloat | Use separate `key` per target triple |
+| 缓存无限增长（>5 GB） | 设置 `prefix-key: "v2-rust"` 强制刷新缓存 |
+| 不同特性污染缓存 | 使用 `key: ${{ hashFiles('**/Cargo.lock') }}` |
+| PR 缓存覆盖 main | 设置 `save-if: ${{ github.ref == 'refs/heads/main' }}` |
+| 交叉编译目标膨胀 | 为每个目标三元组使用独立的 `key` |
 
-**Sharing cache between jobs:**
+**在作业之间共享缓存：**
 
-The `check` job saves the cache; downstream jobs (`test`, `cross`, `coverage`)
-read it. With `save-if` on `main` only, PR runs get the benefit of cached
-dependencies without writing stale caches.
+`check` 作业保存缓存；下游作业（`test`、`cross`、`coverage`）读取它。
+使用 `save-if` 仅在 `main` 上，PR 运行获得缓存依赖的好处而不写入过时缓存。
 
-> **Measured impact on large-scale workspace**: Cold build ~4 min →
-> cached build ~45 sec. The cache action alone saves ~25 min of CI time per
-> pipeline run (across all parallel jobs).
+> **在大型工作空间上的测量影响**：冷构建 ~4 分钟 → 缓存构建 ~45 秒。
+> 仅缓存 action 每次流水线运行（跨所有并行作业）节省约 25 分钟 CI 时间。
 
-### Makefile.toml with cargo-make
+### 使用 cargo-make 的 Makefile.toml
 
-[`cargo-make`](https://sagiegurari.github.io/cargo-make/) provides a portable
-task runner that works across platforms (unlike `make`/`Makefile`):
+[`cargo-make`](https://sagiegurari.github.io/cargo-make/) 提供了一个跨平台的可移植任务运行器
+（与 `make`/`Makefile` 不同）：
 
 ```bash
-# Install
+# 安装
 cargo install cargo-make
 ```
 
 ```toml
-# Makefile.toml — at workspace root
+# Makefile.toml — 在工作空间根目录
 
 [config]
 default_to_workspace = false
 
-# ─── Developer workflows ───
+# ─── 开发者工作流 ───
 
 [tasks.dev]
-description = "Full local verification (same checks as CI)"
+description = "完整本地验证（与 CI 相同）"
 dependencies = ["check", "test", "clippy", "fmt-check"]
 
 [tasks.check]
@@ -280,89 +276,89 @@ args = ["fmt", "--all"]
 command = "cargo"
 args = ["fmt", "--all", "--", "--check"]
 
-# ─── Coverage ───
+# ─── 覆盖率 ───
 
 [tasks.coverage]
-description = "Generate HTML coverage report"
+description = "生成 HTML 覆盖率报告"
 install_crate = "cargo-llvm-cov"
 command = "cargo"
 args = ["llvm-cov", "--workspace", "--html", "--open"]
 
 [tasks.coverage-ci]
-description = "Generate LCOV for CI upload"
+description = "生成用于 CI 上传的 LCOV"
 install_crate = "cargo-llvm-cov"
 command = "cargo"
 args = ["llvm-cov", "--workspace", "--lcov", "--output-path", "lcov.info"]
 
-# ─── Benchmarks ───
+# ─── 基准测试 ───
 
 [tasks.bench]
-description = "Run all benchmarks"
+description = "运行所有基准测试"
 command = "cargo"
 args = ["bench"]
 
-# ─── Cross-compilation ───
+# ─── 交叉编译 ───
 
 [tasks.build-musl]
-description = "Build static binary (musl)"
+description = "构建静态二进制文件（musl）"
 command = "cargo"
 args = ["build", "--release", "--target", "x86_64-unknown-linux-musl"]
 
 [tasks.build-arm]
-description = "Build for aarch64 (requires cross)"
+description = "为 aarch64 构建（需要 cross）"
 command = "cross"
 args = ["build", "--release", "--target", "aarch64-unknown-linux-gnu"]
 
 [tasks.build-all]
-description = "Build for all deployment targets"
+description = "为所有部署目标构建"
 dependencies = ["build-musl", "build-arm"]
 
-# ─── Safety verification ───
+# ─── 安全验证 ───
 
 [tasks.miri]
-description = "Run Miri on all tests"
+description = "在所有测试上运行 Miri"
 toolchain = "nightly"
 command = "cargo"
 args = ["miri", "test", "--workspace"]
 
 [tasks.audit]
-description = "Check for known vulnerabilities"
+description = "检查已知漏洞"
 install_crate = "cargo-audit"
 command = "cargo"
 args = ["audit"]
 
-# ─── Release ───
+# ─── 发布 ───
 
 [tasks.release-dry]
-description = "Preview what cargo-release would do"
+description = "预览 cargo-release 会做什么"
 install_crate = "cargo-release"
 command = "cargo"
 args = ["release", "--workspace", "--dry-run"]
 ```
 
-**Usage:**
+**用法：**
 
 ```bash
-# Equivalent of CI pipeline, locally
+# 在本地等同于 CI 流水线
 cargo make dev
 
-# Generate and view coverage
+# 生成并查看覆盖率
 cargo make coverage
 
-# Build for all targets
+# 为所有目标构建
 cargo make build-all
 
-# Run safety checks
+# 运行安全检查
 cargo make miri
 
-# Check for vulnerabilities
+# 检查漏洞
 cargo make audit
 ```
 
-### Pre-Commit Hooks: Custom Scripts and `cargo-husky`
+### Pre-Commit Hooks：自定义脚本和 `cargo-husky`
 
-Catch issues *before* they reach CI. The recommended approach is a custom
-git hook — it's simple, transparent, and has no external dependencies:
+在问题到达 CI 之前捕获它们。推荐的方法是自定义 git hook —
+它简单、透明，没有外部依赖：
 
 ```bash
 #!/bin/sh
@@ -372,7 +368,7 @@ set -e
 
 echo "=== Pre-commit checks ==="
 
-# Fast checks first
+# 首先是快速检查
 echo "→ cargo fmt --check"
 cargo fmt --all -- --check
 
@@ -389,23 +385,22 @@ echo "=== All checks passed ==="
 ```
 
 ```bash
-# Install the hook
+# 安装 hook
 git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit
 ```
 
-**Alternative: `cargo-husky`** (auto-installs hooks via build script):
+**替代方案：`cargo-husky`**（通过构建脚本自动安装 hooks）：
 
-> ⚠️ **Note**: `cargo-husky` has not been updated since 2022. It still works
-> but is effectively unmaintained. Consider the custom hook approach above
-> for new projects.
+> ⚠️ **注意**：`cargo-husky` 自 2022 年以来未更新。它仍然工作，
+> 但实际上已不再维护。对于新项目，请考虑上面的自定义 hook 方法。
 
 ```bash
 cargo install cargo-husky
 ```
 
 ```toml
-# Cargo.toml — add to dev-dependencies of root crate
+# Cargo.toml — 添加到根 crate 的 dev-dependencies
 [dev-dependencies]
 cargo-husky = { version = "1", default-features = false, features = [
     "precommit-hook",
@@ -416,24 +411,24 @@ cargo-husky = { version = "1", default-features = false, features = [
 ] }
 ```
 
-### Release Workflow: `cargo-release` and `cargo-dist`
+### 发布工作流：`cargo-release` 和 `cargo-dist`
 
-**`cargo-release`** — automates version bumping, tagging, and publishing:
+**`cargo-release`** — 自动化版本递增、打标签和发布：
 
 ```bash
-# Install
+# 安装
 cargo install cargo-release
 ```
 
 ```toml
-# release.toml — at workspace root
+# release.toml — 在工作空间根目录
 [workspace]
 consolidate-commits = true
 pre-release-commit-message = "chore: release {{version}}"
 tag-message = "v{{version}}"
 tag-name = "v{{version}}"
 
-# Don't publish internal crates
+# 不发布内部 crate
 [[package]]
 name = "core_lib"
 release = false
@@ -442,17 +437,17 @@ release = false
 name = "diag_framework"
 release = false
 
-# Only publish the main binary
+# 只发布主二进制文件
 [[package]]
 name = "diag_tool"
 release = true
 ```
 
 ```bash
-# Preview release
+# 预览发布
 cargo release patch --dry-run
 
-# Execute release (bumps version, commits, tags, optionally publishes)
+# 执行发布（递增版本、提交、标签、可选发布）
 cargo release patch --execute
 # 0.1.0 → 0.1.1
 
@@ -460,24 +455,24 @@ cargo release minor --execute
 # 0.1.1 → 0.2.0
 ```
 
-**`cargo-dist`** — generates downloadable release binaries for GitHub Releases:
+**`cargo-dist`** — 为 GitHub Releases 生成可下载的发布二进制文件：
 
 ```bash
-# Install
+# 安装
 cargo install cargo-dist
 
-# Initialize (creates CI workflow + metadata)
+# 初始化（创建 CI 工作流 + 元数据）
 cargo dist init
 
-# Preview what would be built
+# 预览将要构建的内容
 cargo dist plan
 
-# Generate the release (usually done by CI on tag push)
+# 生成发布（通常在标签推送时由 CI 完成）
 cargo dist build
 ```
 
 ```toml
-# Cargo.toml additions from `cargo dist init`
+# 从 `cargo dist init` 添加到 Cargo.toml
 [workspace.metadata.dist]
 cargo-dist-version = "0.28.0"
 ci = "github"
@@ -490,80 +485,74 @@ targets = [
 install-path = "CARGO_HOME"
 ```
 
-This generates a GitHub Actions workflow that, on tag push:
-1. Builds the binary for all target platforms
-2. Creates a GitHub Release with downloadable `.tar.gz` / `.zip` archives
-3. Generates shell/PowerShell installer scripts
-4. Publishes to crates.io (if configured)
+这会生成一个 GitHub Actions 工作流，在标签推送时：
+1. 为所有目标平台构建二进制文件
+2. 创建带有可下载 `.tar.gz` / `.zip` 存档的 GitHub Release
+3. 生成 shell/PowerShell 安装脚本
+4. 发布到 crates.io（如果已配置）
 
-### Try It Yourself — Capstone Exercise
+### 亲身体验 — 顶点练习
 
-This exercise ties together every chapter. You will build a complete
-engineering pipeline for a fresh Rust workspace:
+这个练习将每章内容联系在一起。你将为全新的 Rust 工作空间构建一个完整的工程流水线：
 
-1. **Create a new workspace** with two crates: a library (`core_lib`) and a
-   binary (`cli`). Add a `build.rs` that embeds the git hash and build
-   timestamp using `SOURCE_DATE_EPOCH` (ch01).
+1. **创建一个新工作空间**，包含两个 crate：一个库（`core_lib`）和一个二进制文件（`cli`）。
+   添加一个使用 `SOURCE_DATE_EPOCH` 嵌入 git 哈希和构建时间戳的 `build.rs`（ch01）。
 
-2. **Set up cross-compilation** for `x86_64-unknown-linux-musl` and
-   `aarch64-unknown-linux-gnu`. Verify both targets build with
-   `cargo zigbuild` or `cross` (ch02).
+2. **设置交叉编译**，为 `x86_64-unknown-linux-musl` 和 `aarch64-unknown-linux-gnu` 构建。
+   用 `cargo zigbuild` 或 `cross` 验证两个目标都构建（ch02）。
 
-3. **Add a benchmark** using Criterion or Divan for a function in `core_lib`.
-   Run it locally and record a baseline (ch03).
+3. **添加基准测试**，使用 Criterion 或 Divan 对 `core_lib` 中的函数进行基准测试。
+   在本地运行并记录基线（ch03）。
 
-4. **Measure code coverage** with `cargo llvm-cov`. Set a minimum threshold
-   of 80% and verify it passes (ch04).
+4. **测量代码覆盖率**，使用 `cargo llvm-cov`。设置 80% 的最低阈值并验证通过（ch04）。
 
-5. **Run `cargo +nightly careful test`** and `cargo miri test`. Add a test
-   that exercises `unsafe` code if you have any (ch05).
+5. **运行 `cargo +nightly careful test`** 和 `cargo miri test`。
+   如果你有任何 `unsafe` 代码，添加一个测试来练习它（ch05）。
 
-6. **Configure `cargo-deny`** with a `deny.toml` that bans `openssl` and
-   enforces MIT/Apache-2.0 licensing (ch06).
+6. **配置 `cargo-deny`**，使用 `deny.toml` 禁止 `openssl` 并强制 MIT/Apache-2.0 许可（ch06）。
 
-7. **Optimize the release profile** with `lto = "thin"`, `strip = true`, and
-   `codegen-units = 1`. Measure binary size before/after with `cargo bloat`
-   (ch07).
+7. **优化发布 profile**，使用 `lto = "thin"`、`strip = true` 和 `codegen-units = 1`。
+   用 `cargo bloat` 测量二进制文件大小前后的变化（ch07）。
 
-8. **Add `cargo hack --each-feature`** verification. Create a feature flag
-   for an optional dependency and ensure it compiles alone (ch09).
+8. **添加 `cargo hack --each-feature`** 验证。创建一个可选依赖的特性标志，
+   并确保它单独编译（ch09）。
 
-9. **Write the GitHub Actions workflow** (this chapter) with all 6 stages.
-   Add `Swatinem/rust-cache@v2` with `save-if` tuning.
+9. **编写 GitHub Actions 工作流**（本章），包含所有 6 个阶段。
+   添加 `Swatinem/rust-cache@v2` 和 `save-if` 调优。
 
-**Success criteria**: Push to GitHub → all CI stages green → `cargo dist plan`
-shows your release targets. You now have a production-grade Rust pipeline.
+**成功标准**：推送到 GitHub → 所有 CI 阶段绿色 → `cargo dist plan`
+显示你的发布目标。你现在拥有了一个生产级 Rust 流水线。
 
-### CI Pipeline Architecture
+### CI 流水线架构
 
 ```mermaid
 flowchart LR
     subgraph "Stage 1 — Fast Feedback < 2 min"
         CHECK["cargo check\ncargo clippy\ncargo fmt"]
     end
-    
+
     subgraph "Stage 2 — Tests < 5 min"
         TEST["cargo nextest\ncargo test --doc"]
     end
-    
+
     subgraph "Stage 3 — Coverage"
         COV["cargo llvm-cov\nfail-under 80%"]
     end
-    
+
     subgraph "Stage 4 — Security"
         SEC["cargo audit\ncargo deny check"]
     end
-    
+
     subgraph "Stage 5 — Cross-Build"
         CROSS["musl static\naarch64 + x86_64"]
     end
-    
+
     subgraph "Stage 6 — Release (tag only)"
         REL["cargo dist\nGitHub Release"]
     end
-    
+
     CHECK --> TEST --> COV --> SEC --> CROSS --> REL
-    
+
     style CHECK fill:#91e5a3,color:#000
     style TEST fill:#91e5a3,color:#000
     style COV fill:#e3f2fd,color:#000
@@ -572,13 +561,13 @@ flowchart LR
     style REL fill:#b39ddb,color:#000
 ```
 
-### Key Takeaways
+### 关键要点
 
-- Structure CI as parallel stages: fast checks first, expensive jobs behind gates
-- `Swatinem/rust-cache@v2` with `save-if: ${{ github.ref == 'refs/heads/main' }}` prevents PR cache thrashing
-- Run Miri and heavier sanitizers on a nightly `schedule:` trigger, not on every push
-- `Makefile.toml` (`cargo make`) bundles multi-tool workflows into a single command for local dev
-- `cargo-dist` automates cross-platform release builds — stop writing platform matrix YAML by hand
+- 将 CI 构建为并行阶段：首先进行快速检查，昂贵的作业在门控后面
+- 使用 `save-if: ${{ github.ref == 'refs/heads/main' }}` 的 `Swatinem/rust-cache@v2` 防止 PR 缓存抖动
+- 在 nightly `schedule:` 触发器上运行 Miri 和更重的 sanitizer，而不是在每次推送时
+- `Makefile.toml`（`cargo make`）将多工具工作流捆绑为单个命令用于本地开发
+- `cargo-dist` 自动化跨平台发布构建 — 停止手动编写平台矩阵 YAML
 
 ---
 

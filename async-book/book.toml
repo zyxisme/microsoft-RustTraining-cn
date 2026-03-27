@@ -1,5 +1,5 @@
 [book]
-title = "Async Rust: From Futures to Production"
+title = "异步Rust：从Future到生产级"
 authors = ["Rust Training Team"]
 language = "en"
 src = "src"

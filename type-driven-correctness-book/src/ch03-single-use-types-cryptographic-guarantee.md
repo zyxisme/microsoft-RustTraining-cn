@@ -1,107 +1,103 @@
-# Single-Use Types — Cryptographic Guarantees via Ownership 🟡
+# 单次使用类型 — 通过所有权实现加密保证 🟡
 
-> **What you'll learn:** How Rust's move semantics act as a linear type system, making nonce reuse, double key-agreement, and accidental fuse re-programming impossible at compile time.
+> **你将学到：** Rust 的移动语义如何充当线性类型系统，使现用（nonce）重用、双重密钥协议和意外 fuse 重新编程在编译时成为不可能。
 >
-> **Cross-references:** [ch01](ch01-the-philosophy-why-types-beat-tests.md) (philosophy), [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch14](ch14-testing-type-level-guarantees.md) (testing compile-fail)
+> **交叉引用：** [ch01](ch01-the-philosophy-why-types-beat-tests.md)（哲学理念），[ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md)（能力令牌），[ch05](ch05-protocol-state-machines-type-state-for-r.md)（类型状态），[ch14](ch14-testing-type-level-guarantees.md)（测试编译失败）
 
-## The Nonce Reuse Catastrophe
+## 现用重用灾难
 
-In authenticated encryption (AES-GCM, ChaCha20-Poly1305), reusing a nonce with the
-same key is **catastrophic** — it leaks the XOR of two plaintexts and often the
-authentication key itself. This isn't a theoretical concern:
+在认证加密（AES-GCM、ChaCha20-Poly1305）中，用同一密钥重用现用是 **灾难性的**——它会泄露两个明文的 XOR，通常还有认证密钥本身。这不是理论问题：
 
-- **2016**: Forbidden Attack on AES-GCM in TLS — nonce reuse allowed plaintext recovery
-- **2020**: Multiple IoT firmware update systems found reusing nonces due to poor RNG
+- **2016 年**：TLS 中 AES-GCM 的禁止攻击——现用重用允许明文恢复
+- **2020 年**：多个 IoT 固件更新系统由于 RNG 不佳而重用现用
 
-In C/C++, a nonce is just a `uint8_t[12]`. Nothing prevents you from using it twice.
+在 C/C++ 中，现用只是一个 `uint8_t[12]`。没有什么能阻止你使用它两次。
 
 ```c
-// C — nothing stops nonce reuse
+// C — 没有什么能阻止现用重用
 uint8_t nonce[12];
 generate_nonce(nonce);
-encrypt(key, nonce, msg1, out1);   // ✅ first use
-encrypt(key, nonce, msg2, out2);   // 🐛 CATASTROPHIC: same nonce
+encrypt(key, nonce, msg1, out1);   // ✅ 第一次使用
+encrypt(key, nonce, msg2, out2);   // 🐛 灾难性：相同的现用
 ```
 
-## Move Semantics as Linear Types
+## 移动语义作为线性类型
 
-Rust's ownership system is effectively a **linear type system** — a value can be used
-exactly once (moved) unless it implements `Copy`. The `ring` crate exploits this:
+Rust 的所有权系统实际上是 **线性类型系统**——一个值只能使用一次（移动），除非它实现了 `Copy`。`ring` crate 利用这一点：
 
 ```rust,ignore
-// ring::aead::Nonce is:
-// - NOT Clone
-// - NOT Copy
-// - Consumed by value when used
+// ring::aead::Nonce 是：
+// - 不是 Clone
+// - 不是 Copy
+// - 使用时按值消耗
 pub struct Nonce(/* private */);
 
 impl Nonce {
     pub fn try_assume_unique_for_key(value: &[u8]) -> Result<Self, Unspecified> {
         // ...
     }
-    // No Clone, no Copy — can only be used once
+    // 没有 Clone，没有 Copy——只能使用一次
 }
 ```
 
-When you pass a `Nonce` to `seal_in_place()`, **it moves**:
+当你将 `Nonce` 传递给 `seal_in_place()` 时，**它移动了**：
 
 ```rust,ignore
-// Pseudocode mirroring ring's API shape
+// 伪代码，反映 ring 的 API 形状
 fn seal_in_place(
     key: &SealingKey,
-    nonce: Nonce,       // ← moved, not borrowed
+    nonce: Nonce,       // ← 移动，而不是借用
     data: &mut Vec<u8>,
 ) -> Result<(), Error> {
-    // ... encrypt data in place ...
-    // nonce is consumed — cannot be used again
+    // ... 就地加密数据 ...
+    // nonce 被消耗——不能再次使用
     Ok(())
 }
 ```
 
-Attempting to reuse it:
+尝试重用它：
 
 ```rust,ignore
 fn bad_encrypt(key: &SealingKey, data1: &mut Vec<u8>, data2: &mut Vec<u8>) {
     let nonce = Nonce::try_assume_unique_for_key(&[0u8; 12]).unwrap();
-    seal_in_place(key, nonce, data1).unwrap();  // ✅ nonce moved here
+    seal_in_place(key, nonce, data1).unwrap();  // ✅ nonce 在这里移动
     // seal_in_place(key, nonce, data2).unwrap();
-    //                    ^^^^^ ERROR: use of moved value ❌
+    //                    ^^^^^ 错误：使用已移动的值 ❌
 }
 ```
 
-The compiler **proves** that each nonce is used exactly once. No test required.
+编译器 **证明** 每个现用恰好使用一次。不需要测试。
 
-## Case Study: ring's Nonce
+## 案例研究：ring 的 Nonce
 
-The `ring` crate goes further with `NonceSequence` — a trait that **generates**
-nonces and is also non-cloneable:
+`ring` crate 通过 `NonceSequence` 走得更远——一个生成现用且也不可克隆的 trait：
 
 ```rust,ignore
-/// A sequence of unique nonces.
-/// Not Clone — once bound to a key, cannot be duplicated.
+/// 唯一现用的序列。
+/// 不是 Clone——一旦绑定到密钥，就不能被复制。
 pub trait NonceSequence {
     fn advance(&mut self) -> Result<Nonce, Unspecified>;
 }
 
-/// SealingKey wraps a NonceSequence — each seal() auto-advances.
+/// SealingKey 包装一个 NonceSequence——每次 seal() 自动推进。
 pub struct SealingKey<N: NonceSequence> {
-    key: UnboundKey,   // consumed during construction
+    key: UnboundKey,   // 在构造期间被消耗
     nonce_seq: N,
 }
 
 impl<N: NonceSequence> SealingKey<N> {
     pub fn new(key: UnboundKey, nonce_seq: N) -> Self {
-        // UnboundKey is moved — can't be used for both sealing AND opening
+        // UnboundKey 被移动——不能同时用于 sealing 和 opening
         SealingKey { key, nonce_seq }
     }
 
     pub fn seal_in_place_append_tag(
-        &mut self,       // &mut — exclusive access
+        &mut self,       // &mut ——独占访问
         aad: Aad<&[u8]>,
         in_out: &mut Vec<u8>,
     ) -> Result<(), Unspecified> {
-        let nonce = self.nonce_seq.advance()?; // auto-generate unique nonce
-        // ... encrypt with nonce ...
+        let nonce = self.nonce_seq.advance()?; // 自动生成唯一现用
+        // ... 用现用加密 ...
         Ok(())
     }
 }
@@ -110,32 +106,31 @@ impl<N: NonceSequence> SealingKey<N> {
 # pub struct Unspecified;
 ```
 
-The ownership chain prevents:
-1. **Nonce reuse** — `Nonce` is not `Clone`, consumed on each call
-2. **Key duplication** — `UnboundKey` is moved into `SealingKey`, can't also make an `OpeningKey`
-3. **Sequence duplication** — `NonceSequence` is not `Clone`, so no two keys share a counter
+所有权链防止：
+1. **现用重用** — `Nonce` 不是 `Clone`，每次调用时被消耗
+2. **密钥复制** — `UnboundKey` 移动到 `SealingKey`，不能同时创建 `OpeningKey`
+3. **序列复制** — `NonceSequence` 不是 `Clone`，所以没有两个密钥共享计数器
 
-**None of these require runtime checks.** The compiler enforces all three.
+**所有这些都不需要运行时检查。** 编译器强制执行所有三个。
 
-## Case Study: Ephemeral Key Agreement
+## 案例研究：临时密钥协议
 
-Ephemeral Diffie-Hellman keys must be used **exactly once** (that's what "ephemeral" means).
-`ring` enforces this:
+临时 Diffie-Hellman 密钥必须 **恰好使用一次**（这就是"临时"的含义）。`ring` 强制执行此操作：
 
 ```rust,ignore
-/// An ephemeral private key. Not Clone, not Copy.
-/// Consumed by agree_ephemeral().
+/// 一个临时私钥。不是 Clone，不是 Copy。
+/// 被 agree_ephemeral() 消耗。
 pub struct EphemeralPrivateKey { /* ... */ }
 
-/// Compute shared secret — consumes the private key.
+/// 计算共享密钥——消耗私钥。
 pub fn agree_ephemeral(
-    my_private_key: EphemeralPrivateKey,  // ← moved
+    my_private_key: EphemeralPrivateKey,  // ← 移动
     peer_public_key: &UnparsedPublicKey,
     error_value: Unspecified,
     kdf: impl FnOnce(&[u8]) -> Result<SharedSecret, Unspecified>,
 ) -> Result<SharedSecret, Unspecified> {
-    // ... DH computation ...
-    // my_private_key is consumed — can never be reused
+    // ... DH 计算 ...
+    // my_private_key 被消耗——永远不能重用
     # kdf(&[])
 }
 # pub struct UnparsedPublicKey;
@@ -143,46 +138,41 @@ pub fn agree_ephemeral(
 # pub struct Unspecified;
 ```
 
-After calling `agree_ephemeral()`, the private key **no longer exists in memory**
-(it's been dropped). A C++ developer would need to remember to `memset(key, 0, len)`
-and hope the compiler doesn't optimise it away. In Rust, the key is simply gone.
+调用 `agree_ephemeral()` 后，私钥 **在内存中不再存在**（它已被 drop）。C++ 开发者需要记住调用 `memset(key, 0, len)` 并希望编译器不会将其优化掉。在 Rust 中，密钥 simply 消失了。
 
-## Hardware Application: One-Time Fuse Programming
+## 硬件应用：一次性 Fuse 编程
 
-Server platforms have **OTP (one-time programmable) fuses** for security keys,
-board serial numbers, and feature bits. Writing a fuse is irreversible — doing it
-twice with different data bricks the board. This is a perfect fit for move semantics:
+服务器平台有 **OTP（一次性可编程）fuse**，用于安全密钥、电路板序列号和功能位。写 fuse 是不可逆的——用不同数据写两次会破坏电路板。这是移动语义的完美应用：
 
 ```rust,ignore
 use std::io;
 
-/// A fuse write payload. Not Clone, not Copy.
-/// Consumed when the fuse is programmed.
+/// 一个 fuse 写负载。不是 Clone，不是 Copy。
+/// 当 fuse 被编程时被消耗。
 pub struct FusePayload {
     address: u32,
     data: Vec<u8>,
-    // private constructor — only created via validated builder
+    // 私有构造函数——只能通过验证的构建器创建
 }
 
-/// Proof that the fuse programmer is in the correct state.
+/// 证明 fuse 编程器处于正确状态的证明。
 pub struct FuseController {
     /* hardware handle */
 }
 
 impl FuseController {
-    /// Program a fuse — consumes the payload, preventing double-write.
+    /// 编程一个 fuse——消耗负载，防止双重写入。
     pub fn program(
         &mut self,
-        payload: FusePayload,  // ← moved — can't be used twice
+        payload: FusePayload,  // ← 移动——不能使用两次
     ) -> io::Result<()> {
-        // ... write to OTP hardware ...
-        // payload is consumed — trying to program again with the same
-        // payload is a compile error
+        // ... 写入 OTP 硬件 ...
+        // payload 被消耗——尝试用相同的 payload 再次编程是编译错误
         Ok(())
     }
 }
 
-/// Builder with validation — only way to create a FusePayload.
+/// 带验证的构建器——创建 FusePayload 的唯一方式。
 pub struct FusePayloadBuilder {
     address: Option<u32>,
     data: Option<Vec<u8>>,
@@ -211,7 +201,7 @@ impl FusePayloadBuilder {
     }
 }
 
-// Usage:
+// 用法：
 fn program_board_serial(ctrl: &mut FuseController) -> io::Result<()> {
     let payload = FusePayloadBuilder::new()
         .address(0x100)
@@ -219,22 +209,21 @@ fn program_board_serial(ctrl: &mut FuseController) -> io::Result<()> {
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    ctrl.program(payload)?;      // ✅ payload consumed
+    ctrl.program(payload)?;      // ✅ payload 被消耗
 
-    // ctrl.program(payload);    // ❌ ERROR: use of moved value
-    //              ^^^^^^^ value used after move
+    // ctrl.program(payload);    // ❌ 错误：使用已移动的值
+    //              ^^^^^^^ 移动后使用的值
 
     Ok(())
 }
 ```
 
-## Hardware Application: Single-Use Calibration Token
+## 硬件应用：单次使用校准令牌
 
-Some sensors require a calibration step that must happen **exactly once** per power
-cycle. A calibration token enforces this:
+某些传感器需要每次上电周期恰好发生一次的校准步骤。校准令牌强制执行此操作：
 
 ```rust,ignore
-/// Issued once at power-on. Not Clone, not Copy.
+/// 在上电时颁发一次。不是 Clone，不是 Copy。
 pub struct CalibrationToken {
     _private: (),
 }
@@ -244,7 +233,7 @@ pub struct SensorController {
 }
 
 impl SensorController {
-    /// Called once at power-on — returns a calibration token.
+    /// 在上电时调用一次——返回校准令牌。
     pub fn power_on() -> (Self, CalibrationToken) {
         (
             SensorController { calibrated: false },
@@ -252,23 +241,22 @@ impl SensorController {
         )
     }
 
-    /// Calibrate the sensor — consumes the token.
+    /// 校准传感器——消耗令牌。
     pub fn calibrate(&mut self, _token: CalibrationToken) -> io::Result<()> {
-        // ... run calibration sequence ...
+        // ... 运行校准序列 ...
         self.calibrated = true;
         Ok(())
     }
 
-    /// Read a sensor — only meaningful after calibration.
+    /// 读取传感器——仅在校准后有意义。
     ///
-    /// **Limitation:** The move-semantics guarantee is *partial*. The caller
-    /// can `drop(cal_token)` without calling `calibrate()` — the token will
-    /// be destroyed but calibration won't run. The `#[must_use]` annotation
-    /// (see below) generates a warning but not a hard error.
+    /// **局限性：** 移动语义保证是 *部分* 的。调用者可以
+    /// `drop(cal_token)` 而不调用 `calibrate()`——令牌将被销毁但校准不会运行。
+    /// `#[must_use]` 注解（见下文）生成警告而不是硬错误。
     ///
-    /// The runtime `self.calibrated` check here is the **safety net** for
-    /// that gap. For a fully compile-time solution, see the type-state
-    /// pattern in ch05 where `send_command()` only exists on `IpmiSession<Active>`.
+    /// 这里的运行时 `self.calibrated` 检查是那个缺口的 **安全网**。
+    /// 有关完整的编译时解决方案，请参见 ch05 中的类型状态模式，
+    /// 其中 `send_command()` 只存在于 `IpmiSession<Active>` 上。
     pub fn read(&self) -> io::Result<f64> {
         if !self.calibrated {
             return Err(io::Error::new(io::ErrorKind::Other, "not calibrated"));
@@ -280,61 +268,61 @@ impl SensorController {
 fn sensor_workflow() -> io::Result<()> {
     let (mut ctrl, cal_token) = SensorController::power_on();
 
-    // Must use cal_token somewhere — it's not Copy, so dropping it
-    // without consuming it generates a warning (or error with #[must_use])
+    // 必须在某处使用 cal_token——它不是 Copy，所以 drop 它
+    // 而不消耗它会产生警告（使用 #[must_use] 会变成错误）
     ctrl.calibrate(cal_token)?;
 
-    // Now reads work:
+    // 现在读取有效：
     let temp = ctrl.read()?;
     println!("Temperature: {temp}°C");
 
-    // Can't calibrate again — token was consumed:
-    // ctrl.calibrate(cal_token);  // ❌ use of moved value
+    // 不能再次校准——令牌已被消耗：
+    // ctrl.calibrate(cal_token);  // ❌ 使用已移动的值
 
     Ok(())
 }
 ```
 
-### When to Use Single-Use Types
+### 何时使用单次使用类型
 
-| Scenario | Use single-use (move) semantics? |
+| 场景 | 使用单次使用（移动）语义？ |
 |----------|:------:|
-| Cryptographic nonces | ✅ Always — nonce reuse is catastrophic |
-| Ephemeral keys (DH, ECDH) | ✅ Always — reuse weakens forward secrecy |
-| OTP fuse writes | ✅ Always — double-write bricks hardware |
-| License activation codes | ✅ Usually — prevent double-activation |
-| Calibration tokens | ✅ Usually — enforce once-per-session |
-| File write handles | ⚠️ Sometimes — depends on protocol |
-| Database transaction handles | ⚠️ Sometimes — commit/rollback is single-use |
-| General data buffers | ❌ These need reuse — use `&mut [u8]` |
+| 加密现用 | ✅ 始终——现用重用是灾难性的 |
+| 临时密钥（DH、ECDH） | ✅ 始终——重用削弱前向保密 |
+| OTP fuse 写入 | ✅ 始终——双重写入破坏硬件 |
+| 许可证激活码 | ✅ 通常——防止双重激活 |
+| 校准令牌 | ✅ 通常——强制每会话一次 |
+| 文件写入句柄 | ⚠️ 有时——取决于协议 |
+| 数据库事务句柄 | ⚠️ 有时——提交/回滚是单次使用 |
+| 通用数据缓冲区 | ❌ 这些需要重用——使用 `&mut [u8]` |
 
-## Single-Use Ownership Flow
+## 单次使用所有权流程
 
 ```mermaid
 flowchart LR
-    N["Nonce::new()"] -->|move| E["encrypt(nonce, msg)"]
-    E -->|consumed| X["❌ nonce gone"]
-    N -.->|"reuse attempt"| ERR["COMPILE ERROR:\nuse of moved value"]
+    N["Nonce::new()"] -->|移动| E["encrypt(nonce, msg)"]
+    E -->|消耗| X["❌ nonce 消失"]
+    N -.->|"重用尝试"| ERR["编译错误：\n使用已移动的值"]
     style N fill:#e1f5fe,color:#000
     style E fill:#c8e6c9,color:#000
     style X fill:#ffcdd2,color:#000
     style ERR fill:#ffcdd2,color:#000
 ```
 
-## Exercise: Single-Use Firmware Signing Token
+## 练习：单次使用固件签名令牌
 
-Design a `SigningToken` that can be used exactly once to sign a firmware image:
-- `SigningToken::issue(key_id: &str) -> SigningToken` (not Clone, not Copy)
-- `sign(token: SigningToken, image: &[u8]) -> SignedImage` (consumes the token)
-- Attempting to sign twice should be a compile error.
+设计一个 `SigningToken`，它可以恰好使用一次来签名固件映像：
+- `SigningToken::issue(key_id: &str) -> SigningToken`（不是 Clone，不是 Copy）
+- `sign(token: SigningToken, image: &[u8]) -> SignedImage`（消耗令牌）
+- 尝试签名两次应该是编译错误。
 
 <details>
-<summary>Solution</summary>
+<summary>解答</summary>
 
 ```rust,ignore
 pub struct SigningToken {
     key_id: String,
-    // NOT Clone, NOT Copy
+    // 不是 Clone，不是 Copy
 }
 
 pub struct SignedImage {
@@ -349,30 +337,30 @@ impl SigningToken {
 }
 
 pub fn sign(token: SigningToken, _image: &[u8]) -> SignedImage {
-    // Token consumed by move — can't be reused
+    // 令牌因移动被消耗——不能重用
     SignedImage {
         signature: vec![0xDE, 0xAD],  // stub
         key_id: token.key_id,
     }
 }
 
-// ✅ Compiles:
+// ✅ 编译通过：
 // let tok = SigningToken::issue("release-key");
 // let signed = sign(tok, &firmware_bytes);
 //
-// ❌ Compile error:
-// let signed2 = sign(tok, &other_bytes);  // ERROR: use of moved value
+// ❌ 编译错误：
+// let signed2 = sign(tok, &other_bytes);  // 错误：使用已移动的值
 ```
 
 </details>
 
-## Key Takeaways
+## 关键要点
 
-1. **Move = linear use** — a non-Clone, non-Copy type can be consumed exactly once; the compiler enforces this.
-2. **Nonce reuse is catastrophic** — Rust's ownership system prevents it structurally, not by discipline.
-3. **Pattern applies beyond crypto** — OTP fuses, calibration tokens, audit entries — anything that must happen at most once.
-4. **Ephemeral keys get forward secrecy for free** — the key agreement value is moved into the derived secret and vanishes.
-5. **When in doubt, remove `Clone`** — you can always add it later; removing it from a published API is a breaking change.
+1. **移动 = 线性使用** — 非 Clone、非 Copy 类型只能恰好消耗一次；编译器强制执行此操作。
+2. **现用重用是灾难性的** — Rust 的所有权系统在结构上防止它，而不是靠纪律。
+3. **模式适用于加密之外** — OTP fuse、校准令牌、审计条目——任何最多发生一次的事情。
+4. **临时密钥免费获得前向保密** — 密钥协议值移动到派生密钥中然后消失。
+5. **如有疑问，移除 `Clone`** — 你总是可以稍后添加它；从已发布的 API 中移除它是破坏性更改。
 
 ---
 

@@ -1,17 +1,17 @@
-# The Philosophy — Why Types Beat Tests 🟢
+# 哲学理念 — 为什么类型比测试更好 🟢
 
-> **What you'll learn:** The three levels of compile-time correctness (value, state, protocol), the Curry-Howard intuition behind type-level proofs, and when correct-by-construction patterns are — and aren't — worth the investment.
+> **你将学到：** 编译时正确性的三个级别（值、状态、协议），类型级证明背后的 Curry-Howard 直观理解，以及正确性构造模式何时值得——何时不值得——投入。
 >
-> **Cross-references:** [ch02](ch02-typed-command-interfaces-request-determi.md) (typed commands), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch13](ch13-reference-card.md) (reference card)
+> **交叉引用：** [ch02](ch02-typed-command-interfaces-request-determi.md)（类型化命令），[ch05](ch05-protocol-state-machines-type-state-for-r.md)（类型状态），[ch13](ch13-reference-card.md)（参考卡）
 
-## The Cost of Runtime Checking
+## 运行时检查的代价
 
-Consider a typical runtime guard in a diagnostics codebase:
+考虑一个典型的诊断代码库中的运行时保护：
 
 ```rust,ignore
 fn read_sensor(sensor_type: &str, raw: &[u8]) -> f64 {
     match sensor_type {
-        "temperature" => raw[0] as i8 as f64,          // signed byte
+        "temperature" => raw[0] as i8 as f64,          // 有符号字节
         "fan_speed"   => u16::from_le_bytes([raw[0], raw[1]]) as f64,
         "voltage"     => u16::from_le_bytes([raw[0], raw[1]]) as f64 / 1000.0,
         _             => panic!("unknown sensor type: {sensor_type}"),
@@ -19,26 +19,26 @@ fn read_sensor(sensor_type: &str, raw: &[u8]) -> f64 {
 }
 ```
 
-This function has **four failure modes** the compiler cannot catch:
+这个函数有 **四种编译器无法捕获的失败模式**：
 
-1. Typo: `"temperture"` → panic at runtime
-2. Wrong `raw` length: `fan_speed` with 1 byte → panic at runtime
-3. Caller uses the returned `f64` as RPM when it's actually °C → logic bug, silent
-4. New sensor type added but this `match` not updated → panic at runtime
+1. 拼写错误：`"temperture"` → 运行时 panic
+2. 错误的 `raw` 长度：`fan_speed` 只有 1 字节 → 运行时 panic
+3. 调用者将返回的 `f64` 用作 RPM 而实际上是 °C → 逻辑错误，静默发生
+4. 添加了新传感器类型但未更新此 `match` → 运行时 panic
 
-Every failure mode is discovered **after deployment**. Tests help, but they only cover the cases someone thought to write. The type system covers **all** cases, including ones nobody imagined.
+每种失败模式都是在 **部署后** 才发现的。测试有帮助，但只覆盖了有人想到去写的情况。类型系统覆盖 **所有** 情况，包括没人想到的情况。
 
-## Three Levels of Correctness
+## 正确性的三个级别
 
-### Level 1 — Value Correctness
-**Make invalid values unrepresentable.**
+### 第一级 — 值正确性
+**使无效值不可表示。**
 
 ```rust,ignore
-// ❌ Any u16 can be a "port" — 0 is invalid but compiles
+// ❌ 任何 u16 都可以是"端口"——0 是无效的但可以编译
 fn connect(port: u16) { /* ... */ }
 
-// ✅ Only validated ports can exist
-pub struct Port(u16);  // private field
+// ✅ 只有经过验证的端口才能存在
+pub struct Port(u16);  // 私有字段
 
 impl TryFrom<u16> for Port {
     type Error = &'static str;
@@ -48,13 +48,13 @@ impl TryFrom<u16> for Port {
 }
 
 fn connect(port: Port) { /* ... */ }
-// Port(0) can never be constructed — invariant holds everywhere
+// Port(0) 永远无法构造——不变量在所有地方都成立
 ```
 
-**Hardware example:** `SensorId(u8)` — wraps a raw sensor number with validation that it's in the SDR range.
+**硬件示例：** `SensorId(u8)` — 包装原始传感器编号并验证其在 SDR 范围内。
 
-### Level 2 — State Correctness
-**Make invalid transitions unrepresentable.**
+### 第二级 — 状态正确性
+**使无效转换不可表示。**
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -69,7 +69,7 @@ struct Socket<State> {
 
 impl Socket<Disconnected> {
     fn connect(self, addr: &str) -> Socket<Connected> {
-        // ... connect logic ...
+        // ... 连接逻辑 ...
         Socket { fd: self.fd, _state: PhantomData }
     }
 }
@@ -81,13 +81,13 @@ impl Socket<Connected> {
     }
 }
 
-// Socket<Disconnected> has no send() method — compile error if you try
+// Socket<Disconnected> 没有 send() 方法——如果你尝试调用会得到编译错误
 ```
 
-**Hardware example:** GPIO pin modes — `Pin<Input>` has `read()` but not `write()`.
+**硬件示例：** GPIO 引脚模式 — `Pin<Input>` 有 `read()` 但没有 `write()`。
 
-### Level 3 — Protocol Correctness
-**Make invalid interactions unrepresentable.**
+### 第三级 — 协议正确性
+**使无效交互不可表示。**
 
 ```rust,ignore
 use std::io;
@@ -97,8 +97,8 @@ trait IpmiCmd {
     fn parse_response(&self, raw: &[u8]) -> io::Result<Self::Response>;
 }
 
-// Simplified for illustration — see ch02 for the full trait with
-// net_fn(), cmd_byte(), payload(), and parse_response().
+// 为简化说明——完整的 trait 包含 net_fn()、cmd_byte()、
+// payload() 和 parse_response()，见 ch02。
 
 struct ReadTemp { sensor_id: u8 }
 impl IpmiCmd for ReadTemp {
@@ -113,49 +113,49 @@ impl IpmiCmd for ReadTemp {
 fn execute<C: IpmiCmd>(cmd: &C, raw: &[u8]) -> io::Result<C::Response> {
     cmd.parse_response(raw)
 }
-// ReadTemp always returns Celsius — can't accidentally get Rpm
+// ReadTemp 总是返回 Celsius——不可能意外得到 Rpm
 ```
 
-**Hardware example:** IPMI, Redfish, NVMe Admin commands — the request type determines the response type.
+**硬件示例：** IPMI、Redfish、NVMe Admin 命令——请求类型决定响应类型。
 
-## The Curry-Howard Connection (Simplified)
+## Curry-Howard 联系（简化版）
 
-In programming language theory, the **Curry-Howard correspondence** states that types are propositions and programs are proofs. When you write:
+在编程语言理论中，**Curry-Howard 对应** 表明：类型是命题，程序是证明。当你写：
 
 ```rust,ignore
 fn execute<C: IpmiCmd>(cmd: &C) -> io::Result<C::Response>
 ```
 
-You're not just writing a function — you're stating a **theorem**: "for any command type `C` that implements `IpmiCmd`, executing it produces exactly `C::Response`." The compiler **proves** this theorem every time it compiles your code. If the proof fails, the program can't exist.
+你不仅仅是写了一个函数——你是在陈述一个 **定理**："对于任何实现了 `IpmiCmd` 的命令类型 `C`，执行它会产生恰好是 `C::Response` 的结果。" 编译器每次编译你的代码时都会 **证明** 这个定理。如果证明失败，程序就不可能存在。
 
-You don't need to understand the theory to use the patterns. But it explains *why* Rust's type system is so powerful — it's not just catching mistakes, it's **proving correctness**.
+你不需要理解理论才能使用这些模式。但这解释了他 Rust 的类型系统为何如此强大——它不仅仅是捕获错误，而是在 **证明正确性**。
 
-## When NOT to Use These Patterns
+## 何时不使用这些模式
 
-Correct-by-construction is not always the right choice:
+正确性构造并不总是正确的选择：
 
-| Situation | Recommendation |
+| 情况 | 建议 |
 |-----------|---------------|
-| Safety-critical boundary (power sequencing, crypto) | ✅ Always — a bug here melts hardware or leaks secrets |
-| Cross-module public API | ✅ Usually — misuse should be a compile error |
-| State machine with 3+ states | ✅ Usually — type-state prevents wrong transitions |
-| Internal helper within one 50-line function | ❌ Overkill — a simple `assert!` suffices |
-| Prototyping / exploring unknown hardware | ❌ Raw types first — refine after behaviour is understood |
-| User-facing CLI parsing | ⚠️ `clap` + `TryFrom` at the boundary, raw types inside is fine |
+| 安全关键边界（电源排序、加密） | ✅ 始终使用——这里的 bug 会熔化硬件或泄露秘密 |
+| 跨模块公共 API | ✅ 通常使用——误用应该是编译错误 |
+| 3+ 状态的状态机 | ✅ 通常使用——类型状态防止错误转换 |
+| 一个 50 行函数内部的辅助函数 | ❌ 过度设计——简单的 `assert!` 就够了 |
+| 原型设计/探索未知硬件 | ❌ 先用原始类型——在理解行为后进行细化 |
+| 用户面向的 CLI 解析 | ⚠️ 在边界处使用 `clap` + `TryFrom`，内部使用原始类型即可 |
 
-The key question: **"If this bug happens in production, how bad is it?"**
+关键问题是：**"如果这个 bug 发生在生产环境中，会有多糟糕？"**
 
-- Fan stops → GPU melts → **use types**
-- Wrong DER record → customer gets bad data → **use types**
-- Debug log message slightly wrong → **use `assert!`**
+- 风扇停止 → GPU 熔化 → **使用类型**
+- 错误的 DER 记录 → 客户得到坏数据 → **使用类型**
+- 调试日志消息略有错误 → **使用 `assert!`**
 
-## Key Takeaways
+## 关键要点
 
-1. **Three levels of correctness** — value (newtypes), state (type-state), protocol (associated types) — each eliminates a broader class of bugs.
-2. **Curry-Howard in practice** — every generic function signature is a theorem the compiler proves on each build.
-3. **The cost question** — "if this bug ships, how bad is it?" determines whether types or tests are the right tool.
-4. **Types complement tests** — they eliminate entire *categories*; tests cover specific *values* and edge cases.
-5. **Know when to stop** — internal helpers and throwaway prototypes rarely need type-level enforcement.
+1. **正确性的三个级别** — 值（newtype）、状态（类型状态）、协议（关联类型）——每个级别消除更广泛的 bug 类别。
+2. **实践中的 Curry-Howard** — 每个泛型函数签名都是一个定理，编译器在每次构建时都会证明它。
+3. **代价问题** — "如果这个 bug 发布，会有多糟糕？"决定了类型还是测试是正确的工具。
+4. **类型补充测试** — 它们消除了整个 *类别*；测试覆盖特定的 *值* 和边界情况。
+5. **知道何时停止** — 内部辅助函数和一次性原型很少需要类型级强制执行。
 
 ---
 
