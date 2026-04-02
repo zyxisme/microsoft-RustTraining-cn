@@ -1,7 +1,7 @@
 [book]
 title = "Rust模式"
 authors = ["Rust Training Team"]
-language = "zh"
+language = "en"
 src = "src"
 
 [build]

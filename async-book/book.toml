@@ -1,7 +1,7 @@
 [book]
 title = "异步Rust：从Future到生产级"
 authors = ["Rust Training Team"]
-language = "zh"
+language = "en"
 src = "src"
 
 [build]
