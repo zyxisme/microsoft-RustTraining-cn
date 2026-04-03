@@ -1,12 +1,11 @@
-## Essential Crates for C# Developers
+## C# 开发者的必备 Crate
 
-> **What you'll learn:** The Rust crate equivalents for common .NET libraries — serde (JSON.NET),
-> reqwest (HttpClient), tokio (Task/async), sqlx (Entity Framework), and a deep dive on serde's
-> attribute system compared to `System.Text.Json`.
+> **你将学到：** 常见 .NET 库的 Rust crate 等价物 — serde (JSON.NET)、
+> reqwest (HttpClient)、tokio (Task/async)、sqlx (Entity Framework)，以及 serde 属性系统与 `System.Text.Json` 的深度对比。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-### Core Functionality Equivalents
+### 核心功能等价物
 
 ```rust
 // Cargo.toml dependencies for C# developers
@@ -56,7 +55,7 @@ mockall = "0.11"
 rayon = "1.7"
 ```
 
-### Example Usage Patterns
+### 示例用法模式
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -81,13 +80,13 @@ pub struct User {
 pub enum ApiError {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("Serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
-    
+
     #[error("User not found: {id}")]
     UserNotFound { id: Uuid },
-    
+
     #[error("Validation failed: {message}")]
     Validation { message: String },
 }
@@ -104,27 +103,27 @@ impl UserService {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("Failed to create HTTP client");
-            
+
         UserService { client, base_url }
     }
-    
+
     // Async method (like C# async Task<User>)
     pub async fn get_user(&self, id: Uuid) -> Result<User, ApiError> {
         let url = format!("{}/users/{}", self.base_url, id);
-        
+
         let response = self.client
             .get(&url)
             .send()
             .await?;
-        
+
         if response.status() == 404 {
             return Err(ApiError::UserNotFound { id });
         }
-        
+
         let user = response.json::<User>().await?;
         Ok(user)
     }
-    
+
     // Create user (like C# async Task<User>)
     pub async fn create_user(&self, name: String, email: String) -> Result<User, ApiError> {
         if name.trim().is_empty() {
@@ -132,20 +131,20 @@ impl UserService {
                 message: "Name cannot be empty".to_string(),
             });
         }
-        
+
         let new_user = User {
             id: Uuid::new_v4(),
             name,
             email,
             created_at: Utc::now(),
         };
-        
+
         let response = self.client
             .post(&format!("{}/users", self.base_url))
             .json(&new_user)
             .send()
             .await?;
-        
+
         let created_user = response.json::<User>().await?;
         Ok(created_user)
     }
@@ -156,50 +155,50 @@ impl UserService {
 async fn main() -> Result<(), ApiError> {
     // Initialize logging (like configuring ILogger)
     env_logger::init();
-    
+
     let service = UserService::new("https://api.example.com".to_string());
-    
+
     // Create user
     let user = service.create_user(
         "John Doe".to_string(),
         "john@example.com".to_string(),
     ).await?;
-    
+
     println!("Created user: {:?}", user);
-    
+
     // Get user
     let retrieved_user = service.get_user(user.id).await?;
     println!("Retrieved user: {:?}", retrieved_user);
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]  // Like C# [Test] or [Fact]
     async fn test_user_creation() {
         let service = UserService::new("http://localhost:8080".to_string());
-        
+
         let result = service.create_user(
             "Test User".to_string(),
             "test@example.com".to_string(),
         ).await;
-        
+
         assert!(result.is_ok());
         let user = result.unwrap();
         assert_eq!(user.name, "Test User");
         assert_eq!(user.email, "test@example.com");
     }
-    
+
     #[test]
     fn test_validation() {
         // Synchronous test
         let error = ApiError::Validation {
             message: "Invalid input".to_string(),
         };
-        
+
         assert_eq!(error.to_string(), "Validation failed: Invalid input");
     }
 }
@@ -209,11 +208,11 @@ mod tests {
 
 
 <!-- ch15.1a: Serde Deep Dive for C# Developers -->
-## Serde Deep Dive: JSON Serialization for C# Developers
+## Serde 深度解析：C# 开发者的 JSON 序列化
 
-C# developers rely heavily on `System.Text.Json` or `Newtonsoft.Json`. In Rust, **serde** (serialize/deserialize) is the universal framework — understanding its attribute system unlocks most data-handling scenarios.
+C# 开发者严重依赖 `System.Text.Json` 或 `Newtonsoft.Json`。在 Rust 中，**serde**（serialize/deserialize，序列化/反序列化）是通用框架 — 理解其属性系统能解锁大多数数据处理场景。
 
-### Basic Derive: The Starting Point
+### 基础 Derive：起点
 ```rust
 use serde::{Deserialize, Serialize};
 
@@ -241,7 +240,7 @@ var json = JsonSerializer.Serialize(user, new JsonSerializerOptions { WriteInden
 var parsed = JsonSerializer.Deserialize<User>(json);
 ```
 
-### Field-Level Attributes (Like `[JsonProperty]`)
+### 字段级属性（类似 `[JsonProperty]`）
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -305,9 +304,9 @@ public class ApiResponse
 }
 ```
 
-### Enum Representations (Critical Difference from C#)
+### 枚举表示（与 C# 的关键区别）
 
-Rust serde supports **four different JSON representations** for enums — a concept that has no direct C# equivalent because C# enums are always integers or strings.
+Rust serde 支持枚举的**四种不同 JSON 表示** — 这个概念没有直接的 C# 等价物，因为 C# 枚举始终是整数或字符串。
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -356,7 +355,7 @@ enum FlexibleValue {
 // 42, 3.14, "hello", true — serde auto-detects the variant
 ```
 
-### Custom Serialization (Like `JsonConverter`)
+### 自定义序列化（类似 `JsonConverter`）
 ```rust
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -378,7 +377,7 @@ fn deserialize_duration<'de, D: Deserializer<'de>>(d: D) -> Result<std::time::Du
 // JSON: {"timeout": 5000}  ↔  Config { timeout: Duration::from_millis(5000) }
 ```
 
-### Container-Level Attributes
+### 容器级属性
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -399,22 +398,22 @@ struct StrictConfig {
 // → Error: unknown field `extra`
 ```
 
-### Quick Reference: Serde Attributes
+### 快速参考：Serde 属性
 
-| Attribute | Level | C# Equivalent | Purpose |
+| 属性 | 级别 | C# 等价物 | 用途 |
 |-----------|-------|---------------|---------|
-| `#[serde(rename = "...")]` | Field | `[JsonPropertyName]` | Rename in JSON |
-| `#[serde(skip)]` | Field | `[JsonIgnore]` | Omit entirely |
-| `#[serde(default)]` | Field | Default value | Use `Default::default()` if missing |
-| `#[serde(flatten)]` | Field | `[JsonExtensionData]` | Merge nested struct into parent |
-| `#[serde(skip_serializing_if = "...")]` | Field | `JsonIgnoreCondition` | Conditional skip |
-| `#[serde(rename_all = "camelCase")]` | Container | `JsonSerializerOptions.PropertyNamingPolicy` | Naming convention |
-| `#[serde(deny_unknown_fields)]` | Container | — | Strict deserialization |
-| `#[serde(tag = "type")]` | Enum | Discriminator pattern | Internal tagging |
-| `#[serde(untagged)]` | Enum | — | Try variants in order |
-| `#[serde(with = "...")]` | Field | `[JsonConverter]` | Custom ser/de |
+| `#[serde(rename = "...")]` | 字段 | `[JsonPropertyName]` | 在 JSON 中重命名 |
+| `#[serde(skip)]` | 字段 | `[JsonIgnore]` | 完全忽略 |
+| `#[serde(default)]` | 字段 | 默认值 | 如果缺失则使用 `Default::default()` |
+| `#[serde(flatten)]` | 字段 | `[JsonExtensionData]` | 将嵌套结构合并到父结构 |
+| `#[serde(skip_serializing_if = "...")]` | 字段 | `JsonIgnoreCondition` | 条件性跳过 |
+| `#[serde(rename_all = "camelCase")]` | 容器 | `JsonSerializerOptions.PropertyNamingPolicy` | 命名约定 |
+| `#[serde(deny_unknown_fields)]` | 容器 | — | 严格反序列化 |
+| `#[serde(tag = "type")]` | 枚举 | 判别器模式 | 内部标记 |
+| `#[serde(untagged)]` | 枚举 | — | 按顺序尝试各变体 |
+| `#[serde(with = "...")]` | 字段 | `[JsonConverter]` | 自定义 ser/de |
 
-### Beyond JSON: serde Works Everywhere
+### JSON 之外：serde 无处不在
 ```rust
 // The SAME derive works for ALL formats — just change the crate
 let user = User { name: "Alice".into(), age: 30, email: "a@b.com".into() };

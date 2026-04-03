@@ -1,11 +1,11 @@
-## Avoiding unchecked indexing
+## 避免无检查的索引访问
 
-> **What you'll learn:** Why `vec[i]` is dangerous in Rust (panics on out-of-bounds), and safe alternatives like `.get()`, iterators, and `entry()` API for `HashMap`. Replaces C++'s undefined behavior with explicit handling.
+> **你将学到：** 为什么 `vec[i]` 在 Rust 中是危险的（越界时会 panic），以及安全替代方案如 `.get()`、迭代器和 `HashMap` 的 `entry()` API。用显式处理替代 C++ 的未定义行为。
 
-- In C++, `vec[i]` and `map[key]` have undefined behavior / auto-insert on missing keys. Rust's `[]` panics on out-of-bounds.
-- **Rule**: Use `.get()` instead of `[]` unless you can *prove* the index is valid.
+- 在 C++ 中，`vec[i]` 和 `map[key]` 存在未定义行为/在键缺失时自动插入。Rust 的 `[]` 在越界时会 panic。
+- **规则**：除非你能*证明*索引有效，否则使用 `.get()` 而不是 `[]`。
 
-### C++ → Rust comparison
+### C++ → Rust 对比
 ```cpp
 // C++ — silent UB or insertion
 std::vector<int> v = {1, 2, 3};
@@ -27,7 +27,7 @@ let x = v.get(10);              // None — no panic
 let x = v.get(1).copied().unwrap_or(0);  // 2, or 0 if missing
 ```
 
-### Real example: safe byte parsing from production Rust code
+### 真实案例：生产级 Rust 代码中的安全字节解析
 ```rust
 // Example: diagnostics.rs
 // Parsing a binary SEL record — buffer might be shorter than expected
@@ -35,7 +35,7 @@ let sensor_num = bytes.get(7).copied().unwrap_or(0);
 let ppin = cpu_ppin.get(i).map(|s| s.as_str()).unwrap_or("");
 ```
 
-### Real example: chained safe lookups with `.and_then()`
+### 真实案例：使用 `.and_then()` 链式安全查找
 ```rust
 // Example: profile.rs — double lookup: HashMap → Vec
 pub fn get_processor(&self, location: &str) -> Option<&Processor> {
@@ -46,7 +46,7 @@ pub fn get_processor(&self, location: &str) -> Option<&Processor> {
 // Both lookups return Option — no panics, no UB
 ```
 
-### Real example: safe JSON navigation
+### 真实案例：安全的 JSON 导航
 ```rust
 // Example: framework.rs — every JSON key returns Option
 let manufacturer = product_fru
@@ -55,29 +55,29 @@ let manufacturer = product_fru
     .unwrap_or(UNKNOWN_VALUE)       // &str (safe fallback)
     .to_string();
 ```
-Compare to the C++ pattern: `json["SystemInfo"]["ProductFru"]["Manufacturer"]` — any missing key throws `nlohmann::json::out_of_range`.
+对比 C++ 模式：`json["SystemInfo"]["ProductFru"]["Manufacturer"]` —— 任何键缺失都会抛出 `nlohmann::json::out_of_range`。
 
-### When `[]` is acceptable
-- **After a bounds check**: `if i < v.len() { v[i] }`
-- **In tests**: Where panicking is the desired behavior
-- **With constants**: `let first = v[0];` right after `assert!(!v.is_empty());`
+### 何时可以使用 `[]`
+- **在边界检查之后**：`if i < v.len() { v[i] }`
+- **在测试中**：需要 panic 的行为时
+- **使用常量**：在 `assert!(!v.is_empty());` 之后立即使用 `let first = v[0];`
 
 ----
 
-## Safe value extraction with unwrap_or
+## 使用 unwrap_or 安全提取值
 
-- `unwrap()` panics on `None` / `Err`. In production code, prefer the safe alternatives.
+- `unwrap()` 在 `None` / `Err` 时会 panic。在生产代码中，优先使用安全替代方案。
 
-### The unwrap family
-| **Method** | **Behavior on None/Err** | **Use When** |
+### unwrap 系列方法
+| **方法** | **None/Err 时的行为** | **适用场景** |
 |-----------|------------------------|-------------|
-| `.unwrap()` | **Panics** | Tests only, or provably infallible |
-| `.expect("msg")` | Panics with message | When panic is justified, explain why |
-| `.unwrap_or(default)` | Returns `default` | You have a cheap constant fallback |
-| `.unwrap_or_else(\|\| expr)` | Calls closure | Fallback is expensive to compute |
-| `.unwrap_or_default()` | Returns `Default::default()` | Type implements `Default` |
+| `.unwrap()` | **Panic** | 仅在测试中，或可证明不会失败时 |
+| `.expect("msg")` | 带消息的 panic | 当 panic 是合理的，说明原因 |
+| `.unwrap_or(default)` | 返回 `default` | 有廉价的常量回退值 |
+| `.unwrap_or_else(\|\| expr)` | 调用闭包 | 回退值计算代价较高 |
+| `.unwrap_or_default()` | 返回 `Default::default()` | 类型实现了 `Default` |
 
-### Real example: parsing with safe defaults
+### 真实案例：使用安全默认值解析
 ```rust
 // Example: peripherals.rs
 // Regex capture groups might not match — provide safe fallbacks
@@ -86,7 +86,7 @@ let fw_status = caps.get(5).map(|m| m.as_str()).unwrap_or("0x0");
 let bus = u8::from_str_radix(bus_hex, 16).unwrap_or(0);
 ```
 
-### Real example: `unwrap_or_else` with fallback struct
+### 真实案例：使用 fallback struct 的 `unwrap_or_else`
 ```rust
 // Example: framework.rs
 // Full function wraps logic in an Option-returning closure;
@@ -106,31 +106,31 @@ let bus = u8::from_str_radix(bus_hex, 16).unwrap_or(0);
 })
 ```
 
-### Real example: `unwrap_or_default` on config deserialization
+### 真实案例：在配置反序列化中使用 `unwrap_or_default`
 ```rust
 // Example: framework.rs
 // If JSON config parsing fails, fall back to Default — no crash
 Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
 ```
-The C++ equivalent would be a `try/catch` around `nlohmann::json::parse()` with manual default construction in the catch block.
+对应的 C++ 写法是在 `nlohmann::json::parse()` 周围使用 `try/catch`，并在 catch 块中手动构造默认值。
 
 ----
 
-## Functional transforms: map, map_err, find_map
+## 函数式转换：map、map_err、find_map
 
-- These methods on `Option` and `Result` let you transform the contained value without unwrapping, replacing nested `if/else` with linear chains.
+- `Option` 和 `Result` 上的这些方法让你在不拆开包装的情况下转换内部值，用线性链式调用替代嵌套的 `if/else`。
 
-### Quick reference
-| **Method** | **On** | **Does** | **C++ Equivalent** |
+### 快速参考
+| **方法** | **适用类型** | **功能** | **C++ 等价写法** |
 |-----------|-------|---------|-------------------|
-| `.map(\|v\| ...)` | `Option` / `Result` | Transform the `Some`/`Ok` value | `if (opt) { *opt = transform(*opt); }` |
-| `.map_err(\|e\| ...)` | `Result` | Transform the `Err` value | Adding context to catch block |
-| `.and_then(\|v\| ...)` | `Option` / `Result` | Chain operations that return `Option`/`Result` | Nested if-checks |
-| `.find_map(\|v\| ...)` | Iterator | `find` + `map` in one pass | Loop with `if + break` |
-| `.filter(\|v\| ...)` | `Option` / Iterator | Keep only values matching predicate | `if (!predicate) return nullopt;` |
-| `.ok()?` | `Result` | Convert `Result → Option` and propagate `None` | `if (result.has_error()) return nullopt;` |
+| `.map(\|v\| ...)` | `Option` / `Result` | 转换 `Some`/`Ok` 值 | `if (opt) { *opt = transform(*opt); }` |
+| `.map_err(\|e\| ...)` | `Result` | 转换 `Err` 值 | 在 catch 块中添加上下文 |
+| `.and_then(\|v\| ...)` | `Option` / `Result` | 链式调用返回 `Option`/`Result` 的操作 | 嵌套的 if 检查 |
+| `.find_map(\|v\| ...)` | 迭代器 | 一次遍历完成 `find` + `map` | 使用 `if + break` 的循环 |
+| `.filter(\|v\| ...)` | `Option` / 迭代器 | 只保留满足谓词的值 | `if (!predicate) return nullopt;` |
+| `.ok()?` | `Result` | 将 `Result → Option` 并传播 `None` | `if (result.has_error()) return nullopt;` |
 
-### Real example: `.and_then()` chain for JSON field extraction
+### 真实案例：用于 JSON 字段提取的 `.and_then()` 链
 ```rust
 // Example: framework.rs — finding serial number with fallbacks
 let sys_info = json.get("SystemInfo")?;
@@ -153,9 +153,9 @@ sys_info
     .filter(valid_serial)
     .map(|s| s.to_string())   // Convert &str → String only if Some
 ```
-In C++ this would be a pyramid of `if (json.contains("BaseboardFru")) { if (json["BaseboardFru"].contains("BoardSerialNumber")) { ... } }`.
+在 C++ 中这会是一个 `if (json.contains("BaseboardFru")) { if (json["BaseboardFru"].contains("BoardSerialNumber")) { ... } }` 的金字塔结构。
 
-### Real example: `find_map` — search + transform in one pass
+### 真实案例：`find_map` — 一次遍历完成搜索和转换
 ```rust
 // Example: context.rs — find SDR record matching sensor + owner
 pub fn find_for_event(&self, sensor_number: u8, owner_id: u8) -> Option<&SdrRecord> {
@@ -171,23 +171,23 @@ pub fn find_for_event(&self, sensor_number: u8, owner_id: u8) -> Option<&SdrReco
     })
 }
 ```
-`find_map` is `find` + `map` fused: it stops at the first match and transforms it. The C++ equivalent is a `for` loop with an `if` + `break`.
+`find_map` 是 `find` + `map` 的融合：它在第一个匹配处停止并转换它。对应的 C++ 写法是使用 `for` 循环配合 `if` + `break`。
 
-### Real example: `map_err` for error context
+### 真实案例：使用 `map_err` 添加错误上下文
 ```rust
 // Example: main.rs — add context to errors before propagating
 let json_str = serde_json::to_string_pretty(&config)
     .map_err(|e| format!("Failed to serialize config: {}", e))?;
 ```
-Transforms a `serde_json::Error` into a descriptive `String` error that includes context about *what* failed.
+将 `serde_json::Error` 转换为一个描述性的 `String` 错误，包含关于*什么*失败了的上下文信息。
 
 ----
 
-## JSON handling: nlohmann::json → serde
+## JSON 处理：nlohmann::json → serde
 
-- C++ teams typically use `nlohmann::json` for JSON parsing. Rust uses **serde** + **serde_json** — which is more powerful because the JSON schema is encoded *in the type system*.
+- C++ 团队通常使用 `nlohmann::json` 进行 JSON 解析。Rust 使用 **serde** + **serde_json** —— 这更强大，因为 JSON schema 被编码*在类型系统中*。
 
-### C++ (nlohmann) vs Rust (serde) comparison
+### C++ (nlohmann) vs Rust (serde) 对比
 
 ```cpp
 // C++ with nlohmann::json — runtime field access
@@ -226,17 +226,17 @@ pub struct Fan {
 let fan: Fan = serde_json::from_str(json_str)?;
 ```
 
-### Key serde attributes (real examples from production Rust code)
+### 重要的 serde 属性（来自生产级 Rust 代码的真实案例）
 
-| **Attribute** | **Purpose** | **C++ Equivalent** |
+| **属性** | **用途** | **C++ 等价写法** |
 |--------------|------------|--------------------|
-| `#[serde(default)]` | Use `Default::default()` for missing fields | `if (j.contains(key)) { ... } else { default; }` |
-| `#[serde(rename = "Key")]` | Map JSON key name to Rust field name | Manual `j.at("Key")` access |
-| `#[serde(flatten)]` | Absorb unknown keys into `HashMap` | `for (auto& [k,v] : j.items()) { ... }` |
-| `#[serde(skip)]` | Don't serialize/deserialize this field | Not storing in JSON |
-| `#[serde(tag = "type")]` | Internally tagged enum (discriminator field) | `if (j["type"] == "gpu") { ... }` |
+| `#[serde(default)]` | 对缺失字段使用 `Default::default()` | `if (j.contains(key)) { ... } else { default; }` |
+| `#[serde(rename = "Key")]` | 将 JSON 键名映射到 Rust 字段名 | 手动 `j.at("Key")` 访问 |
+| `#[serde(flatten)]` | 将未知键吸收到 `HashMap` 中 | `for (auto& [k,v] : j.items()) { ... }` |
+| `#[serde(skip)]` | 不序列化/反序列化此字段 | 不存储在 JSON 中 |
+| `#[serde(tag = "type")]` | 内部带标签的枚举（判别字段） | `if (j["type"] == "gpu") { ... }` |
 
-### Real example: full config struct
+### 真实案例：完整的配置结构体
 ```rust
 // Example: diag.rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -258,7 +258,7 @@ let config: DiagConfig = serde_json::from_str(&content)?;
 Ok(config)
 ```
 
-### Enum deserialization with `#[serde(tag = "type")]`
+### 使用 `#[serde(tag = "type")]` 进行枚举反序列化
 ```rust
 // Example: components.rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,11 +271,11 @@ pub enum PcieDeviceKind {
 }
 // serde automatically dispatches on the "type" field — no manual if/else chain
 ```
-The C++ equivalent would be: `if (j["type"] == "Gpu") { parse_gpu(j); } else if (j["type"] == "Nic") { parse_nic(j); } ...`
+对应的 C++ 写法是：`if (j["type"] == "Gpu") { parse_gpu(j); } else if (j["type"] == "Nic") { parse_nic(j); } ...`
 
-# Exercise: JSON deserialization with serde
+# 练习：使用 serde 进行 JSON 反序列化
 
-- Define a `ServerConfig` struct that can be deserialized from the following JSON:
+- 定义一个可以从以下 JSON 反序列化的 `ServerConfig` 结构体：
 ```json
 {
     "hostname": "diag-node-01",
@@ -284,17 +284,17 @@ The C++ equivalent would be: `if (j["type"] == "Gpu") { parse_gpu(j); } else if 
     "modules": ["accel_diag", "nic_diag", "cpu_diag"]
 }
 ```
-- Use `#[derive(Deserialize)]` and `serde_json::from_str()` to parse it
-- Add `#[serde(default)]` to `debug` so it defaults to `false` if missing
-- **Bonus**: Add an `enum DiagLevel { Quick, Full, Extended }` field with `#[serde(default)]` that defaults to `Quick`
+- 使用 `#[derive(Deserialize)]` 和 `serde_json::from_str()` 来解析它
+- 给 `debug` 添加 `#[serde(default)]`，使其在缺失时默认为 `false`
+- **加分题**：添加一个 `enum DiagLevel { Quick, Full, Extended }` 字段，带有 `#[serde(default)]`，默认为 `Quick`
 
-**Starter code** (requires `cargo add serde --features derive` and `cargo add serde_json`):
+**起始代码**（需要 `cargo add serde --features derive` 和 `cargo add serde_json`）：
 ```rust
 use serde::Deserialize;
 
-// TODO: Define DiagLevel enum with Default impl
+// TODO: 定义 DiagLevel 枚举并实现 Default
 
-// TODO: Define ServerConfig struct with serde attributes
+// TODO: 定义 ServerConfig 结构体，添加 serde 属性
 
 fn main() {
     let json_input = r#"{
@@ -304,12 +304,12 @@ fn main() {
         "modules": ["accel_diag", "nic_diag", "cpu_diag"]
     }"#;
 
-    // TODO: Deserialize and print the config
-    // TODO: Try parsing JSON with "debug" field missing — verify it defaults to false
+    // TODO: 反序列化并打印配置
+    // TODO: 尝试解析缺少 "debug" 字段的 JSON —— 验证它默认为 false
 }
 ```
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>答案（点击展开）</summary>
 
 ```rust
 use serde::Deserialize;

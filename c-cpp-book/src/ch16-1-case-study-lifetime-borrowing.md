@@ -83,7 +83,7 @@ class DiagFramework {
 };
 ```
 
-## The Rust Solution: Composable State Structs
+## Rust 解决方案：可组合状态结构体
 ```rust
 // Example: main.rs — State decomposed into focused structs
 
@@ -116,18 +116,18 @@ struct DiagFramework {
 }
 ```
 
-### Key Insight
-- **Testability**: Each state struct can be unit-tested independently
-- **Readability**: `self.health.alert_triggers` vs `m_alertTriggers` — clear ownership
-- **Fearless refactoring**: Changing `GpuDiagState` can't accidentally affect health-monitor processing
-- **No method soup**: Functions that only need health-monitor state take `&mut HealthMonitorState`, not the entire framework
+### 关键见解
+- **可测试性**：每个状态结构体都可以独立进行单元测试
+- **可读性**：`self.health.alert_triggers` 对比 `m_alertTriggers`——清晰的所有权
+- **无畏的重构**：更改 `GpuDiagState` 不会意外影响健康监控处理
+- **没有方法汤**：只需要健康监控状态的函数接受 `&mut HealthMonitorState`，而不是整个框架
 
 ----
 
-# Case Study 5: Trait objects — when they ARE right
+# 案例研究 5：Trait 对象——何时是正确的选择
 
-- Not everything should be an enum! The **diagnostic module plugin system** is a genuine use case for trait objects
-- Why? Because diagnostic modules are **open for extension** — new modules can be added without modifying the framework
+- 并非所有内容都应该是枚举！**诊断模块插件系统**是 trait 对象的真正用例
+- 为什么？因为诊断模块**开放用于扩展**——可以添加新模块而无需修改框架
 
 ```rust
 // Example: framework.rs — Vec<Box<dyn DiagModule>> is correct here
@@ -147,32 +147,32 @@ impl DiagFramework {
 }
 ```
 
-### When to Use Each Pattern
+### 何时使用哪种模式
 
-| **Use Case** | **Pattern** | **Why** |
+| **用例** | **模式** | **原因** |
 |-------------|-----------|--------|
-| Fixed set of variants known at compile time | `enum` + `match` | Exhaustive checking, no vtable |
-| Hardware event types (Degrade, Fatal, Boot, ...) | `enum GpuEventKind` | All variants known, performance matters |
-| PCIe device types (GPU, NIC, Switch, ...) | `enum PcieDeviceKind` | Fixed set, each variant has different data |
-| Plugin/module system (open for extension) | `Box<dyn Trait>` | New modules added without modifying framework |
-| Test mocking | `Box<dyn Trait>` | Inject test doubles |
+| 编译时已知的固定变体集合 | `enum` + `match` | 穷尽检查，无 vtable |
+| 硬件事件类型（Degrade、Fatal、Boot...） | `enum GpuEventKind` | 所有变体已知，性能很重要 |
+| PCIe 设备类型（GPU、NIC、Switch...） | `enum PcieDeviceKind` | 固定集合，每个变体有不同的数据 |
+| 插件/模块系统（开放扩展） | `Box<dyn Trait>` | 无需修改框架即可添加新模块 |
+| 测试模拟 | `Box<dyn Trait>` | 注入测试替身 |
 
-### Exercise: Think Before You Translate
-Given this C++ code:
+### 练习：翻译前先思考
+给定以下 C++ 代码：
 ```cpp
 class Shape { public: virtual double area() = 0; };
 class Circle : public Shape { double r; double area() override { return 3.14*r*r; } };
 class Rect : public Shape { double w, h; double area() override { return w*h; } };
 std::vector<std::unique_ptr<Shape>> shapes;
 ```
-**Question**: Should the Rust translation use `enum Shape` or `Vec<Box<dyn Shape>>`?
+**问题**：Rust 翻译应该使用 `enum Shape` 还是 `Vec<Box<dyn Shape>>`？
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>解决方案（点击展开）</summary>
 
-**Answer**: `enum Shape` — because the set of shapes is **closed** (known at compile time). You'd only use `Box<dyn Shape>` if users could add new shape types at runtime.
+**答案**：`enum Shape`——因为形状集合是**封闭的**（编译时已知）。只有当用户可以在运行时添加新的形状类型时，才使用 `Box<dyn Shape>`。
 
 ```rust
-// Correct Rust translation:
+// 正确的 Rust 翻译：
 enum Shape {
     Circle { r: f64 },
     Rect { w: f64, h: f64 },
@@ -196,7 +196,7 @@ fn main() {
         println!("Area: {:.2}", shape.area());
     }
 }
-// Output:
+// 输出：
 // Area: 78.54
 // Area: 12.00
 ```
@@ -205,26 +205,26 @@ fn main() {
 
 ----
 
-# Translation metrics and lessons learned
+# 翻译指标和经验教训
 
-## What We Learned
-1. **Default to enum dispatch** — In ~100K lines of C++, only ~25 uses of `Box<dyn Trait>` were genuinely needed (plugin systems, test mocks). The other ~900 virtual methods became enums with match
-2. **Arena pattern eliminates reference cycles** — `shared_ptr` and `enable_shared_from_this` are symptoms of unclear ownership. Think about who **owns** the data first
-3. **Pass context, don't store pointers** — Lifetime-bounded `DiagContext<'a>` is safer and clearer than storing `Framework*` in every module
-4. **Decompose god objects** — If a struct has 30+ fields, it's probably 3-4 structs wearing a trenchcoat
-5. **The compiler is your pair programmer** — ~400 `dynamic_cast` calls meant ~400 potential runtime failures. Zero `dynamic_cast` equivalents in Rust means zero runtime type errors
+## 我们学到了什么
+1. **默认使用枚举分发**——在约 10 万行 C++ 中，只有约 25 处真正需要 `Box<dyn Trait>`（插件系统、测试模拟）。其余约 900 个虚方法变成了带 match 的枚举
+2. **Arena 模式消除引用循环**——`shared_ptr` 和 `enable_shared_from_this` 是所有权不清晰的症状。先思考谁**拥有**数据
+3. **传递上下文，不要存储指针**——带生命周期边界的 `DiagContext<'a>` 比在每个模块中存储 `Framework*` 更安全、更清晰
+4. **分解上帝对象**——如果一个结构体有 30+ 个字段，它可能是 3-4 个结构体穿着风衣
+5. **编译器是你的配对程序员**——约 400 次 `dynamic_cast` 调用意味着约 400 个潜在的运行时失败。Rust 中零 `dynamic_cast` 等价物意味着零运行时类型错误
 
-## The Hardest Parts
-- **Lifetime annotations**: Getting borrows right takes time when you're used to raw pointers — but once it compiles, it's correct
-- **Fighting the borrow checker**: Wanting `&mut self` in two places at once. Solution: decompose state into separate structs
-- **Resisting literal translation**: The temptation to write `Vec<Box<dyn Base>>` everywhere. Ask: "Is this set of variants closed?" → If yes, use enum
+## 最困难的部分
+- **生命周期注解**：当你习惯使用原始指针时，正确使用借用需要时间——但一旦编译通过，它就是正确的
+- **与借用检查器斗争**：想要同时在两个地方使用 `&mut self`。解决方案：将状态分解为单独的结构体
+- **抵制逐字翻译**：到处编写 `Vec<Box<dyn Base>>` 的诱惑。问一下："这个变体集合是封闭的吗？"→ 如果是，使用枚举
 
-## Recommendation for C++ Teams
-1. Start with a small, self-contained module (not the god object)
-2. Translate data structures first, then behavior
-3. Let the compiler guide you — its error messages are excellent
-4. Reach for `enum` before `dyn Trait`
-5. Use the [Rust playground](https://play.rust-lang.org/) to prototype patterns before integrating
+## 给 C++ 团队的建议
+1. 从一个小而独立的模块开始（不是上帝对象）
+2. 先翻译数据结构，再翻译行为
+3. 让编译器引导你——它的错误信息非常出色
+4. 使用 `enum` 而不是 `dyn Trait`
+5. 在集成之前，使用 [Rust playground](https://play.rust-lang.org/) 原型化模式
 
 ----
 

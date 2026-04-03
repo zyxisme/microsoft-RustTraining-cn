@@ -169,7 +169,7 @@ graph TD
 
 ### C++ Operator Overloading → Rust `std::ops` Traits
 
-In C++, you overload operators by writing free functions or member functions with special names (`operator+`, `operator<<`, `operator[]`, etc.). In Rust, every operator maps to a trait in `std::ops` (or `std::fmt` for output). You **implement the trait** instead of writing a magic-named function.
+在 C++ 中，你可以通过编写带有特殊名称的自由函数或成员函数来重载运算符（`operator+`、`operator<<`、`operator[]` 等）。在 Rust 中，每个运算符都映射到 `std::ops` 中的一个 trait（输出使用 `std::fmt`）。你**实现 trait** 而不是编写具有魔法名称的函数。
 
 #### Side-by-side: `+` operator
 
@@ -218,7 +218,7 @@ println!("{c:?}"); // Vec2 { x: 4.0, y: 6.0 }
 
 #### The `self` by value gotcha
 
-In Rust, `Add::add(self, rhs)` takes `self` **by value**. For `Copy` types (like `Vec2` above, which derives `Copy`) this is fine — the compiler copies. But for non-`Copy` types, `+` **consumes** the operands:
+在 Rust 中，`Add::add(self, rhs)` 按**值**获取 `self`。对于 `Copy` 类型（如上面的 `Vec2`，它派生了 `Copy`）这没问题——编译器会复制。但对于非 `Copy` 类型，`+` **消耗**操作数：
 
 ```rust
 let s1 = String::from("hello ");
@@ -228,7 +228,7 @@ let s3 = s1 + &s2;  // s1 is MOVED into s3!
 println!("{s2}");     // ✅ s2 was only borrowed (&s2)
 ```
 
-This is why `String + &str` works but `&str + &str` does not — `Add` is only implemented for `String + &str`, consuming the left-hand `String` to reuse its buffer. This has no C++ analogue: `std::string::operator+` always creates a new string.
+这就是为什么 `String + &str` 有效而 `&str + &str` 无效——`Add` 只为 `String + &str` 实现了，消耗左边的 `String` 以重用其缓冲区。这没有 C++ 类比：`std::string::operator+` 总是创建一个新字符串。
 
 #### Full mapping: C++ operators → Rust traits
 
@@ -255,23 +255,23 @@ This is why `String + &str` works but `&str + &str` does not — `Add` is only i
 
 #### Guardrails: what Rust prevents
 
-1. **No implicit conversions**: C++ `operator int()` can cause silent, surprising casts. Rust has no implicit conversion operators — use `From`/`Into` and call `.into()` explicitly.
-2. **No overloading `&&` / `||`**: C++ allows it (breaking short-circuit semantics!). Rust does not.
-3. **No overloading `=`**: Assignment is always a move or copy, never user-defined. Compound assignment (`+=`) IS overloadable via `AddAssign`, etc.
-4. **No overloading `,`**: C++ allows `operator,()` — one of the most infamous C++ footguns. Rust does not.
-5. **No overloading `&` (address-of)**: Another C++ footgun (`std::addressof` exists to work around it). Rust's `&` always means "borrow."
-6. **Coherence rules**: You can only implement `Add<Foreign>` for your own type, or `Add<YourType>` for a foreign type — never `Add<Foreign>` for `Foreign`. This prevents conflicting operator definitions across crates.
+1. **无隐式转换**：C++ `operator int()` 可能导致静默的、令人惊讶的转换。Rust 没有隐式转换操作符——使用 `From`/`Into` 并显式调用 `.into()`。
+2. **不能重载 `&&` / `||`**：C++ 允许（但会破坏短路语义！）。Rust 不允许。
+3. **不能重载 `=`**：赋值总是移动或复制，从不是用户定义的。复合赋值（`+=`）可以通过 `AddAssign` 等重载。
+4. **不能重载 `，`**：C++ 允许 `operator,()` —— 这是 C++ 最臭名昭著的危险特性之一。Rust 不允许。
+5. **不能重载 `&`（取地址）**：另一个 C++ 危险特性（存在 `std::addressof` 来绕过它）。Rust 的 `&` 总是表示"借用"。
+6. **一致性规则**：你只能为自己的类型实现 `Add<Foreign>`，或为外国类型实现 `Add<YourType>`——绝不能为外国类型实现 `Add<Foreign>`。这防止了跨 crate 的冲突运算符定义。
 
-> **Bottom line**: In C++, operator overloading is powerful but largely unregulated — you can overload almost anything, including comma and address-of, and implicit conversions can trigger silently. Rust gives you the same expressiveness for arithmetic and comparison operators via traits, but **blocks the historically dangerous overloads** and forces all conversions to be explicit.
+> **底线**：在 C++ 中，运算符重载很强大但基本上没有规范——你可以重载几乎任何东西，包括逗号和取地址，隐式转换可以静默触发。Rust 通过 trait 为算术和比较操作符提供了同样的表现力，但**阻止了历史上危险的重载**并强制所有转换都是显式的。
 
 ----
 # Rust traits
-- Rust allows implementing a user defined trait on even built-in types like u32 in this example. However, either the trait or the type must belong to the crate
+- Rust 允许在甚至像 u32 这样的内置类型上实现用户定义的 trait，如本例所示。但是，trait 或类型必须属于 crate 之一
 ```rust
 trait IsSecret {
   fn is_secret(&self);
 }
-// The IsSecret trait belongs to the crate, so we are OK
+// IsSecret trait 属于 crate，所以没问题
 impl IsSecret for u32 {
   fn is_secret(&self) {
       if *self == 42 {
@@ -288,7 +288,7 @@ fn main() {
 
 
 # Rust traits
-- Traits support interface inheritance and default implementations
+- Traits 支持接口继承和默认实现
 ```rust
 trait Animal {
   // Default implementation
@@ -304,7 +304,7 @@ trait Feline : Animal {
 }
 
 struct Cat;
-// Use default implementations. Note that all traits for the supertrait must be individually implemented
+// 使用默认实现。注意，supertrait 的所有 traits 必须单独实现
 impl Feline for Cat {}
 impl Animal for Cat {}
 fn main() {
@@ -313,12 +313,12 @@ fn main() {
 }
 ```
 ----
-# Exercise: Logger trait implementation
+# 练习：Logger trait 实现
 
-🟡 **Intermediate**
+🟡 **中级**
 
-- Implement a ```Log trait``` with a single method called log() that accepts a u64
-    - Implement two different loggers ```SimpleLogger``` and ```ComplexLogger``` that implement the ```Log trait```. One should output "Simple logger" with the ```u64``` and the other should output "Complex logger" with the ```u64``` 
+- 实现一个名为 `Log` 的 trait，它有一个接受 u64 的方法 `log()`
+    - 实现两个不同的日志记录器 `SimpleLogger` 和 `ComplexLogger`，它们都实现 `Log` trait。一个应该输出"Simple logger"及其 `u64`，另一个应该输出"Complex logger"及其 `u64` 
 
 <details><summary>Solution (click to expand)</summary>
 
@@ -380,7 +380,7 @@ fn main() {
 ```
 
 # Rust trait impl
-- ```impl``` can be used with traits to accept any type that implements a trait
+- ```impl``` 可以与 trait 一起使用，以接受任何实现了该 trait 的类型
 ```rust
 trait Pet {
     fn speak(&self);
@@ -405,7 +405,7 @@ fn main() {
 ```
 
 # Rust trait impl
-- ```impl``` can be also be used be used in a return value
+- ```impl``` 也可以用于返回值
 ```rust
 trait Pet {}
 struct Dog;
@@ -427,7 +427,7 @@ fn main() {
 ```
 ----
 # Rust dynamic traits
-- Dynamic traits can be used to invoke the trait functionality without knowing the underlying type. This is known as ```type erasure``` 
+- 动态 trait 可用于调用 trait 功能而无需知道底层类型。这称为```类型擦除``` 
 ```rust
 trait Pet {
     fn speak(&self);
@@ -452,9 +452,9 @@ fn main() {
 ```
 ----
 
-## Choosing Between `impl Trait`, `dyn Trait`, and Enums
+## 选择 `impl Trait`、`dyn Trait` 和 Enums
 
-These three approaches all achieve polymorphism but with different trade-offs:
+这三种方法都实现了多态，但有不同的权衡：
 
 | Approach | Dispatch | Performance | Heterogeneous collections? | When to use |
 |----------|----------|-------------|---------------------------|-------------|
@@ -489,7 +489,7 @@ impl ShapeEnum {
 }
 ```
 
-> **For C++ developers:** `impl Trait` is like C++ templates (monomorphized, zero-cost). `dyn Trait` is like C++ virtual functions (vtable dispatch). Rust enums with `match` are like `std::variant` with `std::visit` — but exhaustive matching is enforced by the compiler.
+> **对于 C++ 开发者：** `impl Trait` 类似于 C++ 模板（单态化、零成本）。`dyn Trait` 类似于 C++ 虚函数（vtable 分发）。带有 `match` 的 Rust 枚举类似于 `std::variant` 与 `std::visit` —— 但穷举匹配由编译器强制执行。
 
-> **Rule of thumb**: Start with `impl Trait` (static dispatch). Reach for `dyn Trait` only when you need heterogeneous collections or can't know the concrete type at compile time. Use `enum` when you own all the variants.
+> **经验法则**：从 `impl Trait`（静态分发）开始。只有当你需要异构集合或无法在编译时知道具体类型时才使用 `dyn Trait`。当你拥有所有变体时使用 `enum`。
 

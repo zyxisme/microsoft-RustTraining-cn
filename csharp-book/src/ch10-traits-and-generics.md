@@ -1,21 +1,21 @@
-## Traits - Rust's Interfaces
+## Traits - Rust的接口
 
-> **What you'll learn:** Traits vs C# interfaces, default method implementations, trait objects (`dyn Trait`)
-> vs generic bounds (`impl Trait`), derived traits, common standard library traits, associated types,
-> and operator overloading via traits.
+> **你将学到：** Traits vs C#接口、默认方法实现、trait对象（`dyn Trait`）
+> vs泛型约束（`impl Trait`）、派生traits、标准库常见traits、关联类型、
+> 以及通过traits实现运算符重载。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-Traits are Rust's way of defining shared behavior, similar to interfaces in C# but more powerful.
+Traits是Rust定义共享行为的方式，类似于C#中的接口，但更加强大。
 
-### C# Interface Comparison
+### C#接口对比
 ```csharp
 // C# interface definition
 public interface IAnimal
 {
     string Name { get; }
     void MakeSound();
-    
+
     // Default implementation (C# 8+)
     string Describe()
     {
@@ -27,17 +27,17 @@ public interface IAnimal
 public class Dog : IAnimal
 {
     public string Name { get; }
-    
+
     public Dog(string name)
     {
         Name = name;
     }
-    
+
     public void MakeSound()
     {
         Console.WriteLine("Woof!");
     }
-    
+
     // Can override default implementation
     public string Describe()
     {
@@ -53,18 +53,18 @@ public void ProcessAnimal<T>(T animal) where T : IAnimal
 }
 ```
 
-### Rust Trait Definition and Implementation
+### Rust Trait定义与实现
 ```rust
 // Trait definition
 trait Animal {
     fn name(&self) -> &str;
     fn make_sound(&self);
-    
+
     // Default implementation
     fn describe(&self) -> String {
         format!("{} makes a sound", self.name())
     }
-    
+
     // Default implementation using other trait methods
     fn introduce(&self) {
         println!("Hi, I'm {}", self.name());
@@ -90,11 +90,11 @@ impl Animal for Dog {
     fn name(&self) -> &str {
         &self.name
     }
-    
+
     fn make_sound(&self) {
         println!("Woof!");
     }
-    
+
     // Override default implementation
     fn describe(&self) -> String {
         format!("{} is a loyal {} dog", self.name, self.breed)
@@ -112,11 +112,11 @@ impl Animal for Cat {
     fn name(&self) -> &str {
         &self.name
     }
-    
+
     fn make_sound(&self) {
         println!("Meow!");
     }
-    
+
     // Use default describe() implementation
 }
 
@@ -136,15 +136,15 @@ fn process_animal_debug<T: Animal + std::fmt::Debug>(animal: &T) {
 fn main() {
     let dog = Dog::new("Buddy".to_string(), "Golden Retriever".to_string());
     let cat = Cat { name: "Whiskers".to_string(), indoor: true };
-    
+
     process_animal(&dog);
     process_animal(&cat);
-    
+
     process_animal_debug(&dog);
 }
 ```
 
-### Trait Objects and Dynamic Dispatch
+### Trait对象与动态分发
 ```csharp
 // C# dynamic polymorphism
 public void ProcessAnimals(List<IAnimal> animals)
@@ -191,19 +191,19 @@ fn main() {
         Box::new(Cat { name: "Whiskers".to_string(), indoor: true }),
         Box::new(Dog::new("Rex".to_string(), "German Shepherd".to_string())),
     ];
-    
+
     process_animals(&animals);
-    
+
     // Using references
     let dog = Dog::new("Buddy".to_string(), "Golden Retriever".to_string());
     let cat = Cat { name: "Whiskers".to_string(), indoor: true };
-    
+
     let animal_refs: Vec<&dyn Animal> = vec![&dog, &cat];
     process_animal_refs(&animal_refs);
 }
 ```
 
-### Derived Traits
+### 派生Traits
 ```rust
 // Automatically derive common traits
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -243,15 +243,15 @@ fn main() {
         name: "Alice".to_string(),
         age: 30,
     };
-    
+
     let person2 = person1.clone(); // Clone trait
-    
+
     println!("{:?}", person1); // Debug trait
     println!("Equal: {}", person1 == person2); // PartialEq trait
 }
 ```
 
-### Common Standard Library Traits
+### 标准库常见Traits
 ```rust
 use std::collections::HashMap;
 
@@ -283,7 +283,7 @@ struct PersonIterator {
 
 impl Iterator for PersonIterator {
     type Item = Person;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.people.len() {
             let person = self.people[self.index].clone();
@@ -307,7 +307,7 @@ fn main() {
         Person::from(("Bob".to_string(), 25)),
         Person::from(("Charlie".to_string(), 35)),
     ];
-    
+
     // Use our custom iterator
     for person in Person::iterator(people.clone()) {
         println!("{}", person); // Uses Display trait
@@ -319,12 +319,12 @@ fn main() {
 
 
 <details>
-<summary><strong>🏋️ Exercise: Trait-Based Drawing System</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：基于Trait的绘图系统</strong>（点击展开）</summary>
 
-**Challenge**: Implement a `Drawable` trait with an `area()` method and a `draw()` default method. Create `Circle` and `Rect` structs. Write a function that accepts `&[Box<dyn Drawable>]` and prints total area.
+**挑战**：实现一个带有`area()`方法和`draw()`默认方法的`Drawable` trait。创建`Circle`和`Rect`结构体。编写一个接受`&[Box<dyn Drawable>]`的函数并打印总面积。
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::f64::consts::PI;
@@ -363,17 +363,17 @@ fn main() {
 }
 ```
 
-**Key takeaways**:
-- `dyn Trait` gives runtime polymorphism (like C# `IDrawable`)
-- `Box<dyn Trait>` is heap-allocated, needed for heterogeneous collections
-- Default methods work exactly like C# 8+ default interface methods
+**关键要点**：
+- `dyn Trait`提供运行时多态（类似于C#的`IDrawable`）
+- `Box<dyn Trait>`是堆分配的，用于异构集合
+- 默认方法的工作方式与C# 8+默认接口方法完全相同
 
 </details>
 </details>
 
-### Associated Types: Traits With Type Members
+### 关联类型：带有类型成员的Traits
 
-C# interfaces don't have associated types — Rust traits do. This is how `Iterator` works:
+C#接口没有关联类型——但Rust traits有。这就是`Iterator`的工作方式：
 
 ```rust
 // The Iterator trait has an associated type 'Item'
@@ -397,11 +397,11 @@ impl Iterator for Counter {
 }
 ```
 
-In C#, `IEnumerator<T>` uses a generic parameter (`T`) for this purpose. Rust's associated types are different: `Iterator` has *one* `Item` type per implementation, not a generic parameter at the trait level. This makes trait bounds simpler: `impl Iterator<Item = u32>` vs C#'s `IEnumerable<int>`.
+在C#中，`IEnumerator<T>`为此使用泛型参数（`T`）。Rust的关联类型则不同：`Iterator`每个实现只有一个`Item`类型，而不是在trait级别的泛型参数。这使得trait约束更简单：`impl Iterator<Item = u32>` vs C#的`IEnumerable<int>`。
 
-### Operator Overloading via Traits
+### 通过Traits实现运算符重载
 
-In C#, you define `public static MyType operator+(MyType a, MyType b)`. In Rust, every operator maps to a trait in `std::ops`:
+在C#中，你定义`public static MyType operator+(MyType a, MyType b)`。在Rust中，每个运算符都映射到`std::ops`中的一个trait：
 
 ```rust
 use std::ops::Add;
@@ -421,17 +421,17 @@ let b = Vec2 { x: 3.0, y: 4.0 };
 let c = a + b;  // calls <Vec2 as Add>::add(a, b)
 ```
 
-| C# | Rust | Notes |
-|----|------|-------|
-| `operator+` | `impl Add` | `self` by value — consumes for non-`Copy` types |
-| `operator==` | `impl PartialEq` | Usually `#[derive(PartialEq)]` |
-| `operator<` | `impl PartialOrd` | Usually `#[derive(PartialOrd)]` |
-| `ToString()` | `impl fmt::Display` | Used by `println!("{}", x)` |
-| Implicit conversion | No equivalent | Rust has no implicit conversions — use `From`/`Into` |
+| C# | Rust | 说明 |
+|----|------|------|
+| `operator+` | `impl Add` | `self`按值传递——对于非`Copy`类型会消耗 |
+| `operator==` | `impl PartialEq` | 通常使用`#[derive(PartialEq)]` |
+| `operator<` | `impl PartialOrd` | 通常使用`#[derive(PartialOrd)]` |
+| `ToString()` | `impl fmt::Display` | 用于`println!("{}", x)` |
+| 隐式转换 | 无等价物 | Rust没有隐式转换——使用`From`/`Into` |
 
-### Coherence: The Orphan Rule
+### 一致性：孤儿规则
 
-You can only implement a trait if you own either the trait or the type. This prevents conflicting implementations across crates:
+只有当你拥有该trait或该类型时，才能实现该trait。这防止了跨crate的冲突实现：
 
 ```rust
 // ✅ OK — you own MyType
@@ -444,14 +444,14 @@ impl MyTrait for String { ... }
 impl Display for String { ... }
 ```
 
-C# has no equivalent restriction — any code can add extension methods to any type, which can lead to ambiguity.
+C#没有等价的限制——任何代码都可以向任何类型添加扩展方法，这可能导致歧义。
 
 <!-- ch10.0a: impl Trait and Dispatch Strategies -->
-## `impl Trait`: Returning Traits Without Boxing
+## `impl Trait`：返回Traits而不需要装箱
 
-C# interfaces can always be used as return types. In Rust, returning a trait requires a decision: static dispatch (`impl Trait`) or dynamic dispatch (`dyn Trait`).
+C#接口始终可以用作返回类型。在Rust中，返回trait需要做一个决定：静态分发（`impl Trait`）或动态分发（`dyn Trait`）。
 
-### `impl Trait` in Argument Position (Shorthand for Generics)
+### 在参数位置使用`impl Trait`（泛型的简写）
 ```rust
 // These two are equivalent:
 fn print_animal(animal: &impl Animal) { animal.make_sound(); }
@@ -461,7 +461,7 @@ fn print_animal<T: Animal>(animal: &T)  { animal.make_sound(); }
 // The compiler generates a specialized copy for each concrete type (monomorphization)
 ```
 
-### `impl Trait` in Return Position (The Key Difference)
+### 在返回位置使用`impl Trait`（关键区别）
 ```rust
 // Return an iterator without exposing the concrete type
 fn even_squares(limit: u32) -> impl Iterator<Item = u32> {
@@ -490,7 +490,7 @@ public IEnumerable<int> EvenSquares(int limit) =>
 // Unlike Rust's Box<dyn Trait>, C# doesn't explicitly box — the runtime handles allocation
 ```
 
-### Returning Closures: `impl Fn` vs `Box<dyn Fn>`
+### 返回闭包：`impl Fn` vs `Box<dyn Fn>`
 ```rust
 // Return a closure — you CANNOT name the closure type, so impl Fn is essential
 fn make_adder(x: i32) -> impl Fn(i32) -> i32 {
@@ -517,9 +517,9 @@ Func<int, int> MakeAdder(int x) => y => x + y;
 Func<int, int, int> ChooseOp(bool add) => add ? (a, b) => a + b : (a, b) => a * b;
 ```
 
-### The Dispatch Decision: `impl Trait` vs `dyn Trait` vs Generics
+### 分发决策：`impl Trait` vs `dyn Trait` vs 泛型
 
-This is an architectural decision C# developers face immediately in Rust. Here's the complete guide:
+这是C#开发者在Rust中立即面临的架构决策。以下是完整指南：
 
 ```mermaid
 graph TD
@@ -553,13 +553,13 @@ graph TD
     style DYN_REF fill:#fff3e0,color:#000
 ```
 
-| Approach | Dispatch | Allocation | When to Use |
+| 方法 | 分发方式 | 分配 | 使用场景 |
 |----------|----------|------------|-------------|
-| `fn foo<T: Trait>(x: T)` | Static (monomorphized) | Stack | Multiple trait bounds, turbofish needed, same type reused |
-| `fn foo(x: impl Trait)` | Static (monomorphized) | Stack | Simple bounds, cleaner syntax, one-off parameters |
-| `fn foo() -> impl Trait` | Static | Stack | Single concrete return type, iterators, closures |
-| `fn foo() -> Box<dyn Trait>` | Dynamic (vtable) | **Heap** | Different return types, trait objects in collections |
-| `&dyn Trait` / `&mut dyn Trait` | Dynamic (vtable) | No alloc | Borrowed heterogeneous references, function parameters |
+| `fn foo<T: Trait>(x: T)` | 静态（单态化） | 栈 | 多个trait约束、需要turbofish、相同类型复用 |
+| `fn foo(x: impl Trait)` | 静态（单态化） | 栈 | 简单约束、语法更简洁、一次性参数 |
+| `fn foo() -> impl Trait` | 静态 | 栈 | 单个具体返回类型、迭代器、闭包 |
+| `fn foo() -> Box<dyn Trait>` | 动态（vtable） | **堆** | 不同返回类型、集合中的trait对象 |
+| `&dyn Trait` / `&mut dyn Trait` | 动态（vtable） | 无分配 | 借用的异构引用、函数参数 |
 
 ```rust
 // Summary: from fastest to most flexible

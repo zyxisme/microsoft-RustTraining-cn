@@ -67,7 +67,7 @@ void ProcessEvents(std::vector<std::unique_ptr<GpuEventBase>>& events,
 }
 ```
 
-## The Rust Solution: Enum Dispatch
+## Rust 解决方案：枚举分发
 ```rust
 // Example: types.rs — No inheritance, no vtable, no dynamic_cast
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,16 +109,16 @@ impl GpuEventManager {
 }
 ```
 
-### Why Not `Vec<Box<dyn GpuEvent>>`?
-- **The Wrong Approach** (literal translation): Put all events in one heterogeneous collection, then downcast — this is what C++ does with `vector<unique_ptr<Base>>`
-- **The Right Approach**: Separate typed Vecs eliminate *all* downcasting. Each consumer asks for exactly the event type it needs
-- **Performance**: Separate Vecs give better cache locality (all degrade events are contiguous in memory)
+### 为什么不使用 `Vec<Box<dyn GpuEvent>>`？
+- **错误的方法**（逐字翻译）：将所有事件放在一个异构集合中，然后向下转型——这正是 C++ 使用 `vector<unique_ptr<Base>>` 所做的
+- **正确的方法**：分离的 typed Vec 消除了所有向下转型。每个消费者只需获取它所需的事件类型
+- **性能**：分离的 Vec 提供更好的缓存局部性（所有 degrade 事件在内存中是连续的）
 
 ----
 
-# Case Study 2: shared_ptr tree → Arena/index pattern
+# 案例研究 2：shared_ptr 树 → Arena/索引模式
 
-## The C++ Pattern: Reference-Counted Tree
+## C++ 模式：引用计数树
 ```cpp
 // C++ topology library: PcieDevice uses enable_shared_from_this 
 // because parent and child nodes both need to reference each other
@@ -137,7 +137,7 @@ public:
 // Need weak_ptr to break cycles, but easy to forget
 ```
 
-## The Rust Solution: Arena with Index Linkage
+## Rust 解决方案：带索引链接的 Arena
 ```rust
 // Example: components.rs — Flat Vec owns all devices
 pub struct PcieDevice {
@@ -169,11 +169,11 @@ impl DeviceTree {
 }
 ```
 
-### Key Insight
-- **No `shared_ptr`, no `weak_ptr`, no `enable_shared_from_this`**
-- **No reference cycles possible** — indices are just `usize` values
-- **Better cache performance** — all devices in contiguous memory
-- **Simpler reasoning** — one owner (the Vec), many viewers (indices)
+### 关键见解
+- **无需 `shared_ptr`，无需 `weak_ptr`，无需 `enable_shared_from_this`**
+- **不可能出现引用循环**——索引只是 `usize` 值
+- **更好的缓存性能**——所有设备在连续内存中
+- **更简单的推理**——一个所有者（Vec），多个查看者（索引）
 
 ```mermaid
 graph LR

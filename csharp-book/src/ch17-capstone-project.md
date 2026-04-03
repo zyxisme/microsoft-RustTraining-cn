@@ -1,14 +1,12 @@
-## Capstone Project: Build a CLI Weather Tool
+## 终极项目：构建一个 CLI 天气工具
 
-> **What you'll learn:** How to combine everything — structs, traits, error handling, async, modules,
-> serde, and CLI argument parsing — into a working Rust application. This mirrors the kind of tool
-> a C# developer would build with `HttpClient`, `System.Text.Json`, and `System.CommandLine`.
+> **你将学到：** 如何将所有内容 —— 结构体、trait、错误处理、异步、模块、serde 和 CLI 参数解析 —— 组合成一个可工作的 Rust 应用程序。这类似于 C# 开发者使用 `HttpClient`、`System.Text.Json` 和 `System.CommandLine` 构建的工具。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-This capstone pulls together concepts from every part of the book. You'll build `weather-cli`, a command-line tool that fetches weather data from an API and displays it. The project is structured as a mini-crate with proper module layout, error types, and tests.
+这个终极项目汇集了书中每个部分的概念。你将构建 `weather-cli`，一个从 API 获取天气数据并显示的命令行工具。该项目被构建为一个小型 crate，具有正确的模块布局、错误类型和测试。
 
-### Project Overview
+### 项目概述
 
 ```mermaid
 graph TD
@@ -24,35 +22,35 @@ graph TD
     style Model fill:#c8e6c9,color:#000
 ```
 
-**What you'll build:**
+**你将构建的内容：**
 ```
 $ weather-cli --city "Seattle"
 🌧  Seattle: 12°C, Overcast clouds
     Humidity: 82%  Wind: 5.4 m/s
 ```
 
-**Concepts exercised:**
-| Book Chapter | Concept Used Here |
+**涉及的概念：**
+| 书籍章节 | 这里使用的概念 |
 |---|---|
-| Ch05 (Structs) | `WeatherReport`, `Config` data types |
-| Ch08 (Modules) | `src/lib.rs`, `src/client.rs`, `src/display.rs` |
-| Ch09 (Errors) | Custom `WeatherError` with `thiserror` |
-| Ch10 (Traits) | `Display` impl for formatted output |
-| Ch11 (From/Into) | JSON deserialization via `serde` |
-| Ch12 (Iterators) | Processing API response arrays |
-| Ch13 (Async) | `reqwest` + `tokio` for HTTP calls |
-| Ch14-1 (Testing) | Unit tests + integration test |
+| Ch05 (结构体) | `WeatherReport`、`Config` 数据类型 |
+| Ch08 (模块) | `src/lib.rs`、`src/client.rs`、`src/display.rs` |
+| Ch09 (错误) | 使用 `thiserror` 的自定义 `WeatherError` |
+| Ch10 (Trait) | 用于格式化输出的 `Display` impl |
+| Ch11 (From/Into) | 通过 `serde` 进行 JSON 反序列化 |
+| Ch12 (迭代器) | 处理 API 响应数组 |
+| Ch13 (异步) | 用于 HTTP 调用的 `reqwest` + `tokio` |
+| Ch14-1 (测试) | 单元测试 + 集成测试 |
 
 ---
 
-### Step 1: Project Setup
+### 步骤 1：项目设置
 
 ```bash
 cargo new weather-cli
 cd weather-cli
 ```
 
-Add dependencies to `Cargo.toml`:
+添加依赖到 `Cargo.toml`：
 ```toml
 [package]
 name = "weather-cli"
@@ -69,15 +67,15 @@ tokio = { version = "1", features = ["full"] }       # Async runtime
 ```
 
 ```csharp
-// C# equivalent dependencies:
+// C# 等效依赖：
 // dotnet add package System.CommandLine
 // dotnet add package System.Net.Http.Json
 // (System.Text.Json and HttpClient are built-in)
 ```
 
-### Step 2: Define Your Data Types
+### 步骤 2：定义数据类型
 
-Create `src/weather.rs`:
+创建 `src/weather.rs`：
 ```rust
 use serde::Deserialize;
 
@@ -142,11 +140,11 @@ impl From<ApiResponse> for WeatherReport {
 // Manual mapping or AutoMapper
 ```
 
-**Key difference:** `#[derive(Deserialize)]` + `From` impl replaces C#'s `JsonSerializer.Deserialize<T>()` + AutoMapper. Both happen at compile time in Rust — no reflection.
+**关键区别：** `#[derive(Deserialize)]` + `From` impl 取代了 C# 的 `JsonSerializer.Deserialize<T>()` + AutoMapper。两者在 Rust 中都在编译时完成 —— 无需反射。
 
-### Step 3: Error Type
+### 步骤 3：错误类型
 
-Create `src/error.rs`:
+创建 `src/error.rs`：
 ```rust
 use thiserror::Error;
 
@@ -165,9 +163,9 @@ pub enum WeatherError {
 pub type Result<T> = std::result::Result<T, WeatherError>;
 ```
 
-### Step 4: HTTP Client
+### 步骤 4：HTTP 客户端
 
-Create `src/client.rs`:
+创建 `src/client.rs`：
 ```rust
 use crate::error::{WeatherError, Result};
 use crate::weather::{ApiResponse, WeatherReport};
@@ -211,14 +209,14 @@ impl WeatherClient {
 // var data = await response.Content.ReadFromJsonAsync<ApiResponse>();
 ```
 
-**Key differences:**
-- `?` operator replaces `try/catch` — errors propagate automatically via `Result`
-- `WeatherReport::from(api_data)` uses the `From` trait instead of AutoMapper
-- No `IHttpClientFactory` — `reqwest::Client` handles connection pooling internally
+**关键区别：**
+- `?` 操作符取代了 try/catch —— 错误通过 `Result` 自动传播
+- `WeatherReport::from(api_data)` 使用 `From` trait 而不是 AutoMapper
+- 没有 `IHttpClientFactory` —— `reqwest::Client` 在内部处理连接池
 
-### Step 5: Display Formatting
+### 步骤 5：显示格式化
 
-Create `src/display.rs`:
+创建 `src/display.rs`：
 ```rust
 use std::fmt;
 use crate::weather::WeatherReport;
@@ -244,9 +242,9 @@ fn weather_icon(description: &str) -> &str {
 }
 ```
 
-### Step 6: Wire It All Together
+### 步骤 6：将所有内容连接在一起
 
-`src/lib.rs`:
+`src/lib.rs`：
 ```rust
 pub mod client;
 pub mod display;
@@ -254,7 +252,7 @@ pub mod error;
 pub mod weather;
 ```
 
-`src/main.rs`:
+`src/main.rs`：
 ```rust
 use clap::Parser;
 use weather_cli::{client::WeatherClient, error::WeatherError};
@@ -295,7 +293,7 @@ async fn main() {
 }
 ```
 
-### Step 7: Tests
+### 步骤 7：测试
 
 ```rust
 // In src/weather.rs or tests/weather_test.rs
@@ -351,7 +349,7 @@ mod tests {
 
 ---
 
-### Final File Layout
+### 最终文件布局
 
 ```
 weather-cli/
@@ -367,7 +365,7 @@ weather-cli/
     └── integration.rs # Integration tests
 ```
 
-Compare to the C# equivalent:
+对比 C# 等效实现：
 ```
 WeatherCli/
 ├── WeatherCli.csproj
@@ -381,15 +379,15 @@ WeatherCli/
     └── WeatherTests.cs
 ```
 
-**The Rust version is remarkably similar in structure.** The main differences are:
-- `mod` declarations instead of namespaces
-- `Result<T, E>` instead of exceptions
-- `From` trait instead of AutoMapper
-- Explicit `#[tokio::main]` instead of built-in async runtime
+**Rust 版本在结构上非常相似。** 主要区别在于：
+- `mod` 声明代替了命名空间
+- `Result<T, E>` 代替了异常
+- `From` trait 代替了 AutoMapper
+- 显式的 `#[tokio::main]` 代替了内置的异步运行时
 
-### Bonus: Integration Test Stub
+### 奖励：集成测试存根
 
-Create `tests/integration.rs` to test the public API without hitting a real server:
+创建 `tests/integration.rs` 来测试公共 API，而无需访问真实服务器：
 
 ```rust
 // tests/integration.rs
@@ -412,20 +410,20 @@ fn weather_report_display_roundtrip() {
 }
 ```
 
-Run with `cargo test` — Rust discovers tests in both `src/` (`#[cfg(test)]` modules) and `tests/` (integration tests) automatically. No test framework configuration needed — compare that to setting up xUnit/NUnit in C#.
+使用 `cargo test` 运行 —— Rust 自动发现 `src/`（`#[cfg(test)]` 模块）和 `tests/`（集成测试）中的测试。无需测试框架配置 —— 对比一下在 C# 中设置 xUnit/NUnit 的复杂性。
 
 ---
 
-### Extension Challenges
+### 扩展挑战
 
-Once it works, try these to deepen your skills:
+一旦它工作正常，尝试以下内容来加深你的技能：
 
-1. **Add caching** — Store the last API response in a file. On startup, check if it's less than 10 minutes old and skip the HTTP call. This exercises `std::fs`, `serde_json::to_writer`, and `SystemTime`.
+1. **添加缓存** —— 将上一个 API 响应存储在文件中。启动时，检查是否少于 10 分钟，如果是则跳过 HTTP 调用。这涉及 `std::fs`、`serde_json::to_writer` 和 `SystemTime`。
 
-2. **Add multiple cities** — Accept `--city "Seattle,Portland,Vancouver"` and fetch all concurrently with `tokio::join!`. This exercises concurrent async.
+2. **添加多个城市** —— 接受 `--city "Seattle,Portland,Vancouver"` 并使用 `tokio::join!` 并发获取所有城市。这涉及并发异步。
 
-3. **Add a `--format json` flag** — Output the report as JSON instead of human-readable text using `serde_json::to_string_pretty`. This exercises conditional formatting and `Serialize`.
+3. **添加 `--format json` 标志** —— 使用 `serde_json::to_string_pretty` 将报告输出为 JSON 而不是人类可读的文本。这涉及条件格式化和 `Serialize`。
 
-4. **Write an integration test** — Create `tests/integration.rs` that tests the full flow with a mock HTTP server using `wiremock`. This exercises the `tests/` directory pattern from ch14-1.
+4. **编写集成测试** —— 创建 `tests/integration.rs` 使用 `wiremock` 的模拟 HTTP 服务器测试完整流程。这涉及 ch14-1 中的 `tests/` 目录模式。
 
 ***

@@ -22,18 +22,18 @@
 // src/lib.rs  (or src/main.rs for a binary with #![no_main])
 #![no_std]
 
-// You still get everything in `core`:
+// 你仍然可以使用 core 中的所有内容：
 use core::fmt;
 use core::result::Result;
 use core::option::Option;
 
-// If you have an allocator, opt in to heap types:
+// 如果你有分配器，可以选择使用堆类型：
 extern crate alloc;
 use alloc::vec::Vec;
 use alloc::string::String;
 ```
 
-For a bare-metal binary you also need `#![no_main]` and a panic handler:
+对于裸机二进制文件，你还需要 `#![no_main]` 和一个 panic 处理程序：
 
 ```rust
 #![no_std]
@@ -62,24 +62,24 @@ fn panic(_info: &PanicInfo) -> ! {
 | `std::time` | Hardware timer peripherals |
 | `std::fs` | Flash / EEPROM drivers |
 
-## Notable `no_std` crates for embedded
+## 嵌入式常用的 `no_std` crate
 
-| Crate | Purpose | Notes |
+| Crate | 用途 | 备注 |
 |-------|---------|-------|
-| [`heapless`](https://crates.io/crates/heapless) | Fixed-capacity `Vec`, `String`, `Queue`, `Map` | No allocator needed — all on the stack |
-| [`defmt`](https://crates.io/crates/defmt) | Efficient logging over probe/ITM | Like `printf` but deferred formatting on the host |
-| [`embedded-hal`](https://crates.io/crates/embedded-hal) | Hardware abstraction traits (SPI, I²C, GPIO, UART) | Implement once, run on any MCU |
-| [`cortex-m`](https://crates.io/crates/cortex-m) | ARM Cortex-M intrinsics & register access | Low-level, like CMSIS |
-| [`cortex-m-rt`](https://crates.io/crates/cortex-m-rt) | Runtime / startup code for Cortex-M | Replaces your `startup.s` |
-| [`rtic`](https://crates.io/crates/rtic) | Real-Time Interrupt-driven Concurrency | Compile-time task scheduling, zero overhead |
-| [`embassy`](https://crates.io/crates/embassy-executor) | Async executor for embedded | `async/await` on bare metal |
-| [`postcard`](https://crates.io/crates/postcard) | `no_std` serde serialization (binary) | Replaces `serde_json` when you can't afford strings |
-| [`thiserror`](https://crates.io/crates/thiserror) | Derive macro for `Error` trait | Works in `no_std` since v2; prefer over `anyhow` |
-| [`smoltcp`](https://crates.io/crates/smoltcp) | `no_std` TCP/IP stack | When you need networking without an OS |
+| [`heapless`](https://crates.io/crates/heapless) | 固定容量的 `Vec`、`String`、`Queue`、`Map` | 无需分配器 —— 全部在栈上 |
+| [`defmt`](https://crates.io/crates/defmt) | 通过 probe/ITM 高效日志 | 类似于 `printf`，但格式化在主机端延迟执行 |
+| [`embedded-hal`](https://crates.io/crates/embedded-hal) | 硬件抽象 traits（SPI、I²C、GPIO、UART） | 一次实现，在任何 MCU 上运行 |
+| [`cortex-m`](https://crates.io/crates/cortex-m) | ARM Cortex-M 内部函数和寄存器访问 | 底层，类似于 CMSIS |
+| [`cortex-m-rt`](https://crates.io/crates/cortex-m-rt) | Cortex-M 运行时/启动代码 | 替换你的 `startup.s` |
+| [`rtic`](https://crates.io/crates/rtic) | 实时中断驱动并发 | 编译时任务调度，零开销 |
+| [`embassy`](https://crates.io/crates/embassy-executor) | 嵌入式异步执行器 | 在裸机上使用 `async/await` |
+| [`postcard`](https://crates.io/crates/postcard) | `no_std` serde 序列化（二进制） | 当你无法承受字符串时替换 `serde_json` |
+| [`thiserror`](https://crates.io/crates/thiserror) | `Error` trait 的派生宏 | 自 v2 起支持 `no_std`；优先于 `anyhow` |
+| [`smoltcp`](https://crates.io/crates/smoltcp) | `no_std` TCP/IP 协议栈 | 当你需要无 OS 网络时使用 |
 
-## C vs Rust: bare-metal comparison
+## C vs Rust：裸机对比
 
-A typical embedded C blinky:
+一个典型的嵌入式 C 闪烁程序：
 
 ```c
 // C — bare metal, vendor HAL
@@ -99,7 +99,7 @@ int main(void) {
 }
 ```
 
-The Rust equivalent (using `embedded-hal` + a board crate):
+对应的 Rust 版本（使用 `embedded-hal` + 板级 crate）：
 
 ```rust
 #![no_std]
@@ -126,11 +126,11 @@ fn main() -> ! {
 }
 ```
 
-**Key differences for C devs:**
-- `Peripherals::take()` returns `Option` — ensures the singleton pattern at compile time (no double-init bugs)
-- `.split()` moves ownership of individual pins — no risk of two modules driving the same pin
-- All register access is type-checked — you can't accidentally write to a read-only register
-- The borrow checker prevents data races between `main` and interrupt handlers (with RTIC)
+**C 开发者的关键区别：**
+- `Peripherals::take()` 返回 `Option` —— 在编译时确保单例模式（没有重复初始化的 bug）
+- `.split()` 移动单个引脚的所有权 —— 没有两个模块驱动同一引脚的风险
+- 所有寄存器访问都经过类型检查 —— 你不会意外写入只读寄存器
+- 借用检查器防止 `main` 和中断处理程序之间的数据竞争（使用 RTIC）
 
 ## When to use `no_std` vs `std`
 
@@ -145,14 +145,13 @@ flowchart TD
     E --> H[Fixed-size arrays, heapless collections, no allocation]
 ```
 
-# Exercise: `no_std` ring buffer
+# 练习：`no_std` 环形缓冲区
 
-🔴 **Challenge** — combines generics, `MaybeUninit`, and `#[cfg(test)]` in a `no_std` context
+🔴 **挑战** —— 在 `no_std` 环境中组合使用泛型、`MaybeUninit` 和 `#[cfg(test)]`
 
-In embedded systems you often need a fixed-size ring buffer (circular buffer) that
-never allocates.  Implement one using only `core` (no `alloc`, no `std`).
+在嵌入式系统中，你经常需要一个永不分配内存的固定大小环形缓冲区（循环缓冲区）。仅使用 `core`（不使用 `alloc`，不使用 `std`）实现一个。
 
-**Requirements:**
+**要求：**
 - Generic over element type `T: Copy`
 - Fixed capacity `N` (const generic)
 - `push(&mut self, item: T)` — overwrites oldest element when full
@@ -288,13 +287,11 @@ mod tests {
 }
 ```
 
-**Why this matters for embedded C devs:**
-- `MaybeUninit` is Rust's equivalent of uninitialized memory — the compiler
-  won't insert zero-fills, just like `char buf[N];` in C
-- The `unsafe` blocks are minimal (2 lines) and each has a `// SAFETY:` comment
-- The `const fn new()` means you can create ring buffers in `static` variables
-  without a runtime constructor
-- The tests run on your host with `cargo test` even though the code is `no_std`
+**这对嵌入式 C 开发者为什么重要：**
+- `MaybeUninit` 是 Rust 中未初始化内存的等价物 —— 编译器不会插入零填充，就像 C 中的 `char buf[N];`
+- `unsafe` 块很小（只有 2 行），每个都有一个 `// SAFETY:` 注释
+- `const fn new()` 意味着你可以在 `static` 变量中创建环形缓冲区，而不需要运行时构造函数
+- 即使代码是 `no_std`，你也可以在主机上用 `cargo test` 运行测试
 
 </details>
 

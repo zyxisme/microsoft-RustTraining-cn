@@ -102,8 +102,8 @@ fn main() {
 ```
 - [▶ Try it in the Rust Playground](https://play.rust-lang.org/)
 
-### Combining Rust traits and generics
-- It is possible to have multiple trait constraints
+### 结合 Rust traits 和泛型
+- 可以使用多个 trait 约束
 ```rust
 trait Fish {}
 trait Mammal {}
@@ -122,9 +122,9 @@ fn main() {
 }
 ```
 
-### Rust traits constraints in data types
-- Traits constrainsts can be combined with generics in data types
-- In the following example, we define the ```PrintDescription``` ```trait``` and a generic ```struct``` ```Shape``` with a member constrained by the trait
+### Rust trait 约束在数据类型中的应用
+- Trait 约束可以与数据类型中的泛型组合使用
+- 在下面的示例中，我们定义 ```PrintDescription``` trait 和一个泛型 ```struct``` ```Shape```，其成员受该 trait 约束
 ```rust
 trait PrintDescription {
     fn print_description(&self);
@@ -141,10 +141,10 @@ impl<S: PrintDescription> Shape<S> {
 ```
 - [▶ Try it in the Rust Playground](https://play.rust-lang.org/)
 
-# Exercise: Traits constraints and generics
+# 练习：Trait 约束和泛型
 
-🟡 **Intermediate**
-- Implement a ```struct``` with a generic member ```cipher``` that implements ```CipherText```
+🟡 **中级**
+- 实现一个带有泛型成员 ```cipher``` 的 ```struct```，该成员实现了 ```CipherText```
 ```rust
 trait CipherText {
     fn encrypt(&self);
@@ -153,12 +153,12 @@ trait CipherText {
 //struct Cipher<>
 
 ```
-- Next, implement a method called ```encrypt``` on the ```struct``` ```impl``` that invokes ```encrypt``` on ```cipher```
+- 接下来，在 ```struct``` ```impl``` 上实现名为 ```encrypt``` 的方法，该方法调用 ```cipher``` 上的 ```encrypt```
 ```rust
 // TO DO
 impl for Cipher<> {}
 ```
-- Next, implement ```CipherText``` on two structs called ```CipherOne``` and ```CipherTwo``` (just ```println()``` is fine). Create ```CipherOne``` and ```CipherTwo```, and use ```Cipher``` to invoke them
+- 接下来，在两个名为 ```CipherOne``` 和 ```CipherTwo``` 的 struct 上实现 ```CipherText```（只需 ```println()``` 即可）。创建 ```CipherOne``` 和 ```CipherTwo```，并使用 ```Cipher``` 来调用它们
 
 <details><summary>Solution (click to expand)</summary>
 
@@ -205,11 +205,11 @@ fn main() {
 
 </details>
 
-### Rust type state pattern and generics
-- Rust types can be used to enforce state machine transitions at *compile* time
-    - Consider a ```Drone``` with say two states: ```Idle``` and ```Flying```. In the ```Idle``` state, the only permitted method is ```takeoff()```. In the ```Flying``` state, we permit ```land()```
+### Rust 类型状态模式与泛型
+- Rust 类型可用于在*编译时*强制执行状态机转换
+    - 考虑一个具有两种状态的 ```Drone```：```Idle``` 和 ```Flying```。在 ```Idle``` 状态下，唯一允许的方法是 ```takeoff()```。在 ```Flying``` 状态下，我们允许 ```land()```
     
-- One approach is to model the state machine using something like the following
+- 一种方法是使用类似以下内容对状态机进行建模
 ```rust
 enum DroneState {
     Idle,
@@ -219,10 +219,10 @@ struct Drone {x: u64, y: u64, z: u64, state: DroneState}  // x, y, z are coordin
 ```
 - This requires a lot of runtime checks to enforce the state machine semantics — [▶ try it](https://play.rust-lang.org/) to see why
 
-### Rust type state pattern generics
-- Generics allows us to enforce the state machine at *compile time*. This requires using a special generic called ```PhantomData<T>```
-- The ```PhantomData<T>``` is a ```zero-sized``` marker data type. In this case, we use it to represent the ```Idle``` and ```Flying``` states, but it has ```zero``` runtime size
-- Notice that the ```takeoff``` and ```land``` methods take ```self``` as a parameter. This is referred to as ```consuming``` (contrast with ```&self``` which uses borrowing). Basically, once we call the ```takeoff()``` on ```Drone<Idle>```, we can only get back a ```Drone<Flying>``` and viceversa
+### Rust 类型状态模式泛型
+- 泛型允许我们在*编译时*强制执行状态机。这需要使用一个特殊的泛型叫做 ```PhantomData<T>```
+- ```PhantomData<T>``` 是一个```零大小```的标记数据类型。在这种情况下，我们使用它来表示 ```Idle``` 和 ```Flying``` 状态，但它具有 ```零``` 运行时大小
+- 注意 ```takeoff``` 和 ```land``` 方法将 ```self``` 作为参数。这被称为```消费```（与使用借用的 ```&self``` 对比）。基本上，一旦我们在 ```Drone<Idle>``` 上调用 ```takeoff()```，我们只能返回 ```Drone<Flying>```，反之亦然
 ```rust
 struct Drone<T> {x: u64, y: u64, z: u64, state: PhantomData<T> }
 impl Drone<Idle> {
@@ -234,17 +234,17 @@ impl Drone<Flying> {
 ```
     - [▶ Try it in the Rust Playground](https://play.rust-lang.org/)
 
-### Rust type state pattern generics
-- Key takeaways:
-    - States can be represented using structs (zero-size)
-    - We can combine the state ```T``` with ```PhantomData<T>``` (zero-size)
-    - Implementing the methods for a particular stage of the state machine is now just a matter of ```impl State<T>```
-    - Use a method that consumes ```self``` to transition from one state to another
-    - This gives us ```zero cost``` abstractions. The compiler can enforce the state machine at compile time and it's impossible to call methods unless the state is right
+### Rust 类型状态模式泛型
+- 关键要点：
+    - 状态可以用 struct（零大小）表示
+    - 我们可以将状态 ```T``` 与 ```PhantomData<T>```（零大小）组合
+    - 为状态机的特定阶段实现方法现在只是 ```impl State<T>``` 的问题
+    - 使用消费 ```self``` 的方法从一种状态转换到另一种状态
+    - 这为我们提供了```零成本```抽象。编译器可以在编译时强制执行状态机，除非状态正确，否则无法调用方法
 
-### Rust builder pattern
-- The consume ```self``` can be useful for builder patterns
-- Consider a GPIO configuration with several dozen pins. The pins can be configured to high or low (default is low)
+### Rust 构建器模式
+- 消费 ```self``` 可用于构建器模式
+- 考虑一个具有几十个引脚的 GPIO 配置。引脚可以配置为高或低（默认为低）
 ```rust
 #[derive(default)]
 enum PinState {

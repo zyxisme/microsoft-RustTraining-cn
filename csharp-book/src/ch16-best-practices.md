@@ -1,18 +1,18 @@
-## Best Practices for C# Developers
+## C# 开发者的最佳实践
 
-> **What you'll learn:** Five critical mindset shifts (GC→ownership, exceptions→Results, inheritance→composition),
-> idiomatic project organization, error handling strategy, testing patterns, and the most common
-> mistakes C# developers make in Rust.
+> **学习内容：** 五种关键思维转变（GC→所有权、异常→Result、继承→组合）、
+> 符合语言习惯的项目组织方式、错误处理策略、测试模式，以及 C# 开发者
+> 在 Rust 中最常犯的错误。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-### 1. **Mindset Shifts**
-- **From GC to Ownership**: Think about who owns data and when it's freed
-- **From Exceptions to Results**: Make error handling explicit and visible
-- **From Inheritance to Composition**: Use traits to compose behavior
-- **From Null to Option**: Make absence of values explicit in the type system
+### 1. **思维转变**
+- **从 GC 到所有权**：思考谁拥有数据以及何时释放
+- **从异常到 Result**：使错误处理显式且可见
+- **从继承到组合**：使用 trait 来组合行为
+- **从 Null 到 Option**：在类型系统中明确表示值的缺失
 
-### 2. **Code Organization**
+### 2. **代码组织**
 ```rust
 // Structure projects like C# solutions
 src/
@@ -31,7 +31,7 @@ src/
 └── utils/          // Like Utilities/
 ```
 
-### 3. **Error Handling Strategy**
+### 3. **错误处理策略**
 ```rust
 // Create a common Result type for your application
 pub type AppResult<T> = Result<T, AppError>;
@@ -40,13 +40,13 @@ pub type AppResult<T> = Result<T, AppError>;
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-    
+
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("Validation error: {message}")]
     Validation { message: String },
-    
+
     #[error("Business logic error: {message}")]
     Business { message: String },
 }
@@ -59,26 +59,26 @@ pub async fn create_user(data: CreateUserRequest) -> AppResult<User> {
 }
 ```
 
-### 4. **Testing Patterns**
+### 4. **测试模式**
 ```rust
 // Structure tests like C# unit tests
 #[cfg(test)]
 mod tests {
     use super::*;
     use rstest::*;  // For parameterized tests like C# [Theory]
-    
+
     #[test]
     fn test_basic_functionality() {
         // Arrange
         let input = "test data";
-        
+
         // Act
         let result = process_data(input);
-        
+
         // Assert
         assert_eq!(result, "expected output");
     }
-    
+
     #[rstest]
     #[case(1, 2, 3)]
     #[case(5, 5, 10)]
@@ -86,7 +86,7 @@ mod tests {
     fn test_addition(#[case] a: i32, #[case] b: i32, #[case] expected: i32) {
         assert_eq!(add(a, b), expected);
     }
-    
+
     #[tokio::test]  // For async tests
     async fn test_async_functionality() {
         let result = async_function().await;
@@ -95,7 +95,7 @@ mod tests {
 }
 ```
 
-### 5. **Common Mistakes to Avoid**
+### 5. **应避免的常见错误**
 ```rust
 // [ERROR] Don't try to implement inheritance
 // Instead of:
@@ -139,13 +139,16 @@ struct Data {
 }
 ```
 
-This guide provides C# developers with a comprehensive understanding of how their existing knowledge translates to Rust, highlighting both the similarities and the fundamental differences in approach. The key is understanding that Rust's constraints (like ownership) are designed to prevent entire classes of bugs that are possible in C#, at the cost of some initial complexity.
+本指南为 C# 开发者提供了将现有知识迁移到 Rust 的全面理解，突出了两者的相似之处
+以及方法上的根本差异。关键在于理解 Rust 的约束（如所有权机制）旨在防止
+C# 中可能出现的一整类 bug，代价是一些初始的复杂性。
 
 ---
 
-### 6. **Avoiding Excessive `clone()`** 🟡
+### 6. **避免过度使用 `clone()`** 🟡
 
-C# developers instinctively clone data because the GC handles the cost. In Rust, every `.clone()` is an explicit allocation. Most can be eliminated with borrowing.
+C# 开发者本能地 clone 数据，因为 GC 会处理成本。在 Rust 中，每一次 `.clone()` 都是
+一次显式的内存分配。大多数 clone 可以通过借用来消除。
 
 ```rust
 // [ERROR] C# habit: cloning strings to pass around
@@ -167,22 +170,22 @@ greet(&user_name);  // borrows
 greet(&user_name);  // borrows again — no cost
 ```
 
-**When clone is appropriate:**
-- Moving data into a thread or `'static` closure (`Arc::clone` is cheap — it bumps a counter)
-- Caching: you genuinely need an independent copy
-- Prototyping: get it working, then remove clones later
+**适合使用 clone 的场景：**
+- 将数据移动到线程或 `'static` 闭包中（`Arc::clone` 很便宜——只是增加引用计数）
+- 缓存：确实需要一个独立的副本
+- 原型开发：先让它工作起来，之后再移除 clone
 
-**Decision checklist:**
-1. Can you pass `&T` or `&str` instead? → Do that
-2. Does the callee need ownership? → Pass by move, not clone
-3. Is it shared across threads? → Use `Arc<T>` (clone is just a reference count bump)
-4. None of the above? → `clone()` is justified
+**决策清单：**
+1. 能否改用 `&T` 或 `&str`？→ 用这个
+2. 被调用者需要所有权吗？→ 通过移动传递，而不是 clone
+3. 是否在多个线程间共享？→ 使用 `Arc<T>`（clone 只是增加引用计数）
+4. 以上都不是？→ `clone()` 是合理的
 
 ---
 
-### 7. **Avoiding `unwrap()` in Production Code** 🟡
+### 7. **避免在生产代码中使用 `unwrap()`** 🟡
 
-C# developers who ignore exceptions write `.unwrap()` everywhere in Rust. Both are equally dangerous.
+忽略异常的 C# 开发者在 Rust 中会到处写 `.unwrap()`。两者同样危险。
 
 ```rust
 // [ERROR] The "I'll fix this later" trap
@@ -200,20 +203,21 @@ let home = std::env::var("HOME")
     .expect("HOME environment variable must be set");  // documents the invariant
 ```
 
-**Rule of thumb:**
-| Method | When to use |
+**经验法则：**
+| 方法 | 使用时机 |
 |--------|------------|
-| `?` | Application/library code — propagate to caller |
-| `expect("reason")` | Startup assertions, invariants that *must* hold |
-| `unwrap()` | Tests only, or after an `is_some()`/`is_ok()` check |
-| `unwrap_or(default)` | When you have a sensible fallback |
-| `unwrap_or_else(|| ...)` | When the fallback is expensive to compute |
+| `?` | 应用/库代码——传播给调用者 |
+| `expect("reason")` | 启动时的断言、*必须*成立的不变量 |
+| `unwrap()` | 仅在测试中，或在 `is_some()`/`is_ok()` 检查之后 |
+| `unwrap_or(default)` | 当你有合理的默认值时 |
+| `unwrap_or_else(|| ...)` | 当回退计算代价较高时 |
 
 ---
 
-### 8. **Fighting the Borrow Checker (and How to Stop)** 🟡
+### 8. **与借用检查器斗争（以及如何停止）** 🟡
 
-Every C# developer hits a phase where the borrow checker rejects valid-seeming code. The fix is usually a structural change, not a workaround.
+每位 C# 开发者都会经历借用检查器拒绝看似有效代码的阶段。解决方案通常是
+结构性改变，而不是变通方法。
 
 ```rust
 // [ERROR] Trying to mutate while iterating (C# foreach + modify pattern)
@@ -245,21 +249,22 @@ fn get_greeting() -> String {
 }
 ```
 
-**Common patterns that resolve borrow checker conflicts:**
+**解决借用检查器冲突的常见模式：**
 
-| C# habit | Rust solution |
+| C# 习惯 | Rust 解决方案 |
 |----------|--------------|
-| Store references in structs | Use owned data, or add lifetime parameters |
-| Mutate shared state freely | Use `Arc<Mutex<T>>` or restructure to avoid sharing |
-| Return references to locals | Return owned values |
-| Modify collection while iterating | Collect changes, then apply |
-| Multiple mutable references | Split struct into independent parts |
+| 在结构体中存储引用 | 使用拥有所有权的，或添加生命周期参数 |
+| 自由地改变共享状态 | 使用 `Arc<Mutex<T>>` 或重构以避免共享 |
+| 返回局部变量的引用 | 返回拥有所有权的值 |
+| 迭代时修改集合 | 先收集修改，再应用 |
+| 多个可变引用 | 将结构体拆分为独立的部分 |
 
 ---
 
-### 9. **Collapsing Assignment Pyramids** 🟢
+### 9. **消除赋值金字塔** 🟢
 
-C# developers write chains of `if (x != null) { if (x.Value > 0) { ... } }`. Rust's `match`, `if let`, and `?` flatten these.
+C# 开发者写 `if (x != null) { if (x.Value > 0) { ... } }` 这样的链式调用。
+Rust 的 `match`、`if let` 和 `?` 可以将这些扁平化。
 
 ```rust
 // [ERROR] Nested null-checking style from C#
@@ -295,16 +300,14 @@ fn process(input: Option<String>) -> Option<usize> {
 }
 ```
 
-**Key combinators every C# developer should know:**
+**每位 C# 开发者都应掌握的关键组合器：**
 
-| Combinator | What it does | C# equivalent |
+| 组合器 | 作用 | C# 等价 |
 |-----------|-------------|---------------|
-| `map` | Transform the inner value | `Select` / null-conditional `?.` |
-| `and_then` | Chain operations that return Option/Result | `SelectMany` / `?.Method()` |
-| `filter` | Keep value only if predicate passes | `Where` |
-| `unwrap_or` | Provide default | `?? defaultValue` |
-| `ok()` | Convert `Result` to `Option` (discard error) | — |
-| `transpose` | Flip `Option<Result>` to `Result<Option>` | — |
-
-
+| `map` | 转换内部值 | `Select` / 空条件 `?.` |
+| `and_then` | 链接返回 Option/Result 的操作 | `SelectMany` / `?.Method()` |
+| `filter` | 仅在谓词通过时保留值 | `Where` |
+| `unwrap_or` | 提供默认值 | `?? defaultValue` |
+| `ok()` | 将 `Result` 转换为 `Option`（丢弃错误） | — |
+| `transpose` | 将 `Option<Result>` 翻转为 `Result<Option>` | — |
 

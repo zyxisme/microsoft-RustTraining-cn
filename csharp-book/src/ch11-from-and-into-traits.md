@@ -1,33 +1,33 @@
-## Type Conversions in Rust
+## Rust 中的类型转换
 
-> **What you'll learn:** `From`/`Into` traits vs C#'s implicit/explicit operators, `TryFrom`/`TryInto`
-> for fallible conversions, `FromStr` for parsing, and idiomatic string conversion patterns.
+> **学习内容：** `From`/`Into` trait 与 C# 的隐式/显式转换运算符的对比、`TryFrom`/`TryInto`
+> 用于可失败转换的场景、`FromStr` 用于解析，以及惯用的字符串转换模式。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-C# uses implicit/explicit conversions and casting operators. Rust uses the `From` and `Into` traits for safe, explicit conversions.
+C# 使用隐式/显式转换和强制转换运算符。Rust 使用 `From` 和 `Into` trait 来实现安全的显式转换。
 
-### C# Conversion Patterns
+### C# 转换模式
 ```csharp
-// C# implicit/explicit conversions
+// C# 隐式/显式转换
 public class Temperature
 {
     public double Celsius { get; }
-    
+
     public Temperature(double celsius) { Celsius = celsius; }
-    
-    // Implicit conversion
+
+    // 隐式转换
     public static implicit operator double(Temperature t) => t.Celsius;
-    
-    // Explicit conversion
+
+    // 显式转换
     public static explicit operator Temperature(double d) => new Temperature(d);
 }
 
-double temp = new Temperature(100.0);  // implicit
-Temperature t = (Temperature)37.5;     // explicit
+double temp = new Temperature(100.0);  // 隐式
+Temperature t = (Temperature)37.5;     // 显式
 ```
 
-### Rust From and Into
+### Rust From 和 Into
 ```rust
 #[derive(Debug)]
 struct Temperature {
@@ -49,16 +49,16 @@ impl From<Temperature> for f64 {
 fn main() {
     // From
     let temp = Temperature::from(100.0);
-    
-    // Into (automatically available when From is implemented)
+
+    // Into（实现 From 后自动获得）
     let temp2: Temperature = 37.5.into();
-    
-    // Works in function arguments too
+
+    // 在函数参数中也能工作
     fn process_temp(temp: impl Into<Temperature>) {
         let t: Temperature = temp.into();
         println!("Temperature: {:.1}°C", t.celsius);
     }
-    
+
     process_temp(98.6);
     process_temp(Temperature { celsius: 0.0 });
 }
@@ -75,15 +75,15 @@ graph LR
     style B fill:#bbdefb,color:#000
 ```
 
-> **Rule of thumb**: Implement `From`, and you get `Into` for free. Callers can use whichever reads better.
+> **经验法则**：实现 `From`，就能免费获得 `Into`。调用者可以使用任何一种看起来更自然的写法。
 
-### TryFrom for Fallible Conversions
+### TryFrom 用于可失败的转换
 ```rust
 use std::convert::TryFrom;
 
 impl TryFrom<i32> for Temperature {
     type Error = String;
-    
+
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         if value < -273 {
             Err(format!("Temperature {}°C is below absolute zero", value))
@@ -101,24 +101,24 @@ fn main() {
 }
 ```
 
-### String Conversions
+### 字符串转换
 ```rust
-// ToString via Display trait
+// 通过 Display trait 实现 ToString
 impl std::fmt::Display for Temperature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}°C", self.celsius)
     }
 }
 
-// Now .to_string() works automatically
+// 现在 .to_string() 自动可用
 let s = Temperature::from(100.0).to_string(); // "100.0°C"
 
-// FromStr for parsing
+// FromStr 用于解析
 use std::str::FromStr;
 
 impl FromStr for Temperature {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim_end_matches("°C").trim();
         let celsius: f64 = s.parse().map_err(|e| format!("Invalid temp: {}", e))?;
@@ -131,22 +131,22 @@ let t: Temperature = "100.0°C".parse().unwrap();
 
 ---
 
-## Exercises
+## 练习
 
 <details>
-<summary><strong>🏋️ Exercise: Currency Converter</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：货币转换器</strong>（点击展开）</summary>
 
-Create a `Money` struct that demonstrates the full conversion ecosystem:
+创建一个 `Money` 结构体来展示完整的转换生态：
 
-1. `Money { cents: i64 }` (stores value in cents to avoid floating-point issues)
-2. Implement `From<i64>` (treats input as whole dollars → `cents = dollars * 100`)
-3. Implement `TryFrom<f64>` — reject negative amounts, round to nearest cent
-4. Implement `Display` to show `"$1.50"` format
-5. Implement `FromStr` to parse `"$1.50"` or `"1.50"` back into `Money`
-6. Write a function `fn total(items: &[impl Into<Money> + Copy]) -> Money` that sums values
+1. `Money { cents: i64 }`（以分为单位存储值以避免浮点数问题）
+2. 实现 `From<i64>`（将输入视为整美元 → `cents = dollars * 100`）
+3. 实现 `TryFrom<f64>`——拒绝负数金额，四舍五入到最近的分
+4. 实现 `Display` 以显示 `"$1.50"` 格式
+5. 实现 `FromStr` 以将 `"$1.50"` 或 `"1.50"` 解析回 `Money`
+6. 编写函数 `fn total(items: &[impl Into<Money> + Copy]) -> Money` 来求和
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解决方案</summary>
 
 ```rust
 use std::fmt;
@@ -199,5 +199,4 @@ fn main() {
 </details>
 
 ***
-
 

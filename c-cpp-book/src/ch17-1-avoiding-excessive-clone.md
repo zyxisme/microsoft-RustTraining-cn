@@ -38,7 +38,7 @@ pub fn model_or_unknown(&self) -> &str {
     self.model.as_deref().unwrap_or(UNKNOWN_VALUE)
 }
 ```
-The C++ equivalent would return `const std::string&` or `std::string_view` — but in C++ neither is lifetime-checked. In Rust, the borrow checker guarantees the returned `&str` can't outlive `self`.
+对应的 C++ 版本会返回 `const std::string&` 或 `std::string_view` —— 但在 C++ 中两者都没有生命周期检查。在 Rust 中，借用检查器保证返回的 `&str` 不会比 `self` 存在得更久。
 
 ### 实际示例：静态字符串切片——完全不需要堆
 ```rust
@@ -48,7 +48,7 @@ const HBM_SCREEN_RECIPES: &[&str] = &[
     "hbm_burnin_8h", "hbm_burnin_24h",
 ];
 ```
-In C++ this would typically be `std::vector<std::string>` (heap-allocated on first use). Rust's `&'static [&'static str]` lives in read-only memory — zero runtime cost.
+在 C++ 中这通常是 `std::vector<std::string>`（首次使用时堆分配）。Rust 的 `&'static [&'static str]` 存在于只读内存中——零运行时成本。
 
 ### 何时 clone() 是合适的
 
@@ -185,9 +185,7 @@ fn main() {
 
 ### 为什么存在 Weak
 
-`Rc<T>` and `Arc<T>` create reference cycles if two values point to each
-other — neither ever reaches refcount 0, so neither is dropped (memory leak).
-`Weak` breaks the cycle:
+`Rc<T>` 和 `Arc<T>` 如果两个值互相指向对方，就会创建引用循环——两者都永远达不到 refcount 0，所以两者都不会被释放（内存泄漏）。`Weak` 打破这个循环：
 
 ```rust
 use std::rc::{Rc, Weak};

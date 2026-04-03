@@ -111,7 +111,7 @@ fn main() {
 
 <details><summary>Solution (click to expand)</summary>
 
-The complete workspace setup:
+完整的工作区设置：
 
 ```bash
 # Terminal commands
@@ -302,7 +302,7 @@ fn main() {
 }
 ```
 
-You can even compile C source files directly from a Rust crate:
+你甚至可以直接从 Rust crate 中编译 C 源文件：
 
 ```toml
 # Cargo.toml
@@ -341,7 +341,7 @@ rustup target add aarch64-unknown-linux-gnu
 cargo build --target aarch64-unknown-linux-gnu --release
 ```
 
-Specify the linker in `.cargo/config.toml`:
+在 `.cargo/config.toml` 中指定链接器：
 
 ```toml
 [target.aarch64-unknown-linux-gnu]

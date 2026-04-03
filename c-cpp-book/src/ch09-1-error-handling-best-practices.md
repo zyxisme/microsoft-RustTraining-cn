@@ -190,7 +190,7 @@ impl From<std::io::Error> for Error {
 
 ### 组合模块级错误
 
-Larger crates split errors by module, then compose them at the crate root:
+较大的 crate 按模块拆分错误，然后在 crate 根级别组合它们：
 
 ```rust
 // src/config/error.rs

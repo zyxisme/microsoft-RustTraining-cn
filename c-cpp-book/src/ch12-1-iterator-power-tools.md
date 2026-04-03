@@ -6,25 +6,25 @@
 
 ### 快速参考表
 
-| Method | C Equivalent | What it does | Returns |
+| 方法 | C等价 | 作用 | 返回 |
 |--------|-------------|-------------|---------|
-| `enumerate()` | `for (int i=0; ...)` | Pairs each element with its index | `(usize, T)` |
-| `zip(other)` | Parallel arrays with same index | Pairs elements from two iterators | `(A, B)` |
-| `chain(other)` | Process array1 then array2 | Concatenates two iterators | `T` |
-| `flat_map(f)` | Nested loops | Maps then flattens one level | `U` |
-| `windows(n)` | `for (int i=0; i<len-n+1; i++) &arr[i..i+n]` | Overlapping slices of size `n` | `&[T]` |
-| `chunks(n)` | Process `n` elements at a time | Non-overlapping slices of size `n` | `&[T]` |
-| `fold(init, f)` | `int acc = init; for (...) acc = f(acc, x);` | Reduce to single value | `Acc` |
-| `scan(init, f)` | Running accumulator with output | Like `fold` but yields intermediate results | `Option<B>` |
-| `take(n)` / `skip(n)` | Start loop at offset / limit | First `n` / skip first `n` elements | `T` |
-| `take_while(f)` / `skip_while(f)` | `while (pred) {...}` | Take/skip while predicate holds | `T` |
-| `peekable()` | Lookahead with `arr[i+1]` | Allows `.peek()` without consuming | `T` |
-| `step_by(n)` | `for (i=0; i<len; i+=n)` | Take every nth element | `T` |
-| `unzip()` | Split parallel arrays | Collect pairs into two collections | `(A, B)` |
-| `sum()` / `product()` | Accumulate sum/product | Reduce with `+` or `*` | `T` |
-| `min()` / `max()` | Find extremes | Return `Option<T>` | `Option<T>` |
-| `any(f)` / `all(f)` | `bool found = false; for (...) ...` | Short-circuit boolean search | `bool` |
-| `position(f)` | `for (i=0; ...) if (pred) return i;` | Index of first match | `Option<usize>` |
+| `enumerate()` | `for (int i=0; ...)` | 将每个元素与其索引配对 | `(usize, T)` |
+| `zip(other)` | 并行数组使用相同索引 | 将两个迭代器的元素配对 | `(A, B)` |
+| `chain(other)` | 先处理array1再处理array2 | 连接两个迭代器 | `T` |
+| `flat_map(f)` | 嵌套循环 | 映射后展平一层 | `U` |
+| `windows(n)` | `for (int i=0; i<len-n+1; i++) &arr[i..i+n]` | 大小为`n`的重叠切片 | `&[T]` |
+| `chunks(n)` | 每次处理`n`个元素 | 大小为`n`的非重叠切片 | `&[T]` |
+| `fold(init, f)` | `int acc = init; for (...) acc = f(acc, x);` | 归约为单个值 | `Acc` |
+| `scan(init, f)` | 带输出的运行累积器 | 类似`fold`但产生中间结果 | `Option<B>` |
+| `take(n)` / `skip(n)` | 从偏移量开始循环 / 限制 | 前`n`个 / 跳过前`n`个元素 | `T` |
+| `take_while(f)` / `skip_while(f)` | `while (pred) {...}` | 条件满足时获取/跳过 | `T` |
+| `peekable()` | 用`arr[i+1]` lookahead | 允许`.peek()`而不消费 | `T` |
+| `step_by(n)` | `for (i=0; i<len; i+=n)` | 取每第n个元素 | `T` |
+| `unzip()` | 分割并行数组 | 将配对收集到两个集合 | `(A, B)` |
+| `sum()` / `product()` | 累积求和/乘积 | 用`+`或`*`归约 | `T` |
+| `min()` / `max()` | 找极值 | 返回`Option<T>` | `Option<T>` |
+| `any(f)` / `all(f)` | `bool found = false; for (...) ...` | 短路布尔搜索 | `bool` |
+| `position(f)` | `for (i=0; ...) if (pred) return i;` | 第一个匹配的位置 | `Option<usize>` |
 
 ### `enumerate` — 索引 + 值（替代 C 索引循环）
 
@@ -59,7 +59,7 @@ fn main() {
 }
 ```
 
-### `chain` — Concatenate Iterators
+### `chain` — 连接迭代器
 
 ```rust
 fn main() {
@@ -73,7 +73,7 @@ fn main() {
 }
 ```
 
-### `flat_map` — Flatten Nested Results
+### `flat_map` — 展平嵌套结果
 
 ```rust
 fn main() {
@@ -88,7 +88,7 @@ fn main() {
 }
 ```
 
-### `windows` and `chunks` — Sliding and Fixed-Size Groups
+### `windows` and `chunks` — 滑动和固定大小分组
 
 ```rust
 fn main() {
@@ -112,7 +112,7 @@ fn main() {
 }
 ```
 
-### `fold` and `scan` — Accumulation
+### `fold` and `scan` — 累积
 
 ```rust
 fn main() {
@@ -141,14 +141,14 @@ fn main() {
 }
 ```
 
-### Exercise: Sensor Data Pipeline
+### 练习：传感器数据管道
 
-Given raw sensor readings (one per line, format `"sensor_name:value:unit"`), write an
-iterator pipeline that:
-1. Parses each line into `(name, f64, unit)`
-2. Filters out readings below a threshold
-3. Groups by sensor name using `fold` into a `HashMap`
-4. Prints the average reading per sensor
+给定原始传感器读数（每行一个，格式为`sensor_name:value:unit"`），编写一个
+迭代器管道来：
+1. 将每行解析为`(name, f64, unit)`
+2. 过滤掉低于阈值的读数
+3. 使用`fold`按传感器名称分组到`HashMap`
+4. 打印每个传感器的平均读数
 
 ```rust
 // Starter code
@@ -214,12 +214,12 @@ fn main() {
 </details>
 
 
-# Rust iterators
-- The ```Iterator``` trait is used to implement iteration over user defined types (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
-    - In the example, we'll implement an iterator for the Fibonacci sequence, which starts with 1, 1, 2, ... and the successor is the sum of the previous two numbers
-    - The ```associated type``` in the ```Iterator``` (```type Item = u32;```) defines the output type from our iterator (```u32```)
-    - The ```next()``` method simply contains the logic for implementing our iterator. In this case, all state information is available in the ```Fibonacci``` structure
-    - We could have implemented another trait called ```IntoIterator``` to implement the ```into_iter()``` method for more specialized iterators
+# Rust 迭代器
+- ```Iterator``` trait 用于实现用户定义类型的迭代（https://doc.rust-lang.org/std/iter/trait.IntoIterator.html）
+    - 在示例中，我们将实现斐波那契序列的迭代器，它以1, 1, 2, ...开始，后继是前两个数字的和
+    - ```Iterator```中的```associated type```（```type Item = u32;```）定义了迭代器的输出类型（```u32```）
+    - ```next()```方法只包含实现迭代器的逻辑。在这种情况下，所有状态信息都可在```Fibonacci```结构中获得
+    - 我们也可以实现另一个叫```IntoIterator```的trait来为更专门的迭代器实现```into_iter()```方法
     - https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=ab367dc2611e1b5a0bf98f1185b38f3f
 
 

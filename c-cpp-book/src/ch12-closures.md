@@ -63,9 +63,9 @@ fn main() {
 
 </details>
 
-# Rust iterators
-- Iterators are one of the most powerful features of Rust. They enable very elegant methods for perform operations on collections, including filtering (```filter()```), transformation (```map()```), filter and map (```filter_and_map()```), searching (```find()```) and much more
-- In the example below, the ```|&x| *x >= 42``` is a closure that performs the same comparison. The ```|x| println!("{x}")``` is another closure
+# Rust 迭代器
+- 迭代器是 Rust 最强大的特性之一。它们支持非常优雅的方法来对集合执行操作，包括过滤（```filter()```）、转换（```map()```）、过滤和映射（```filter_and_map()```）、搜索（```find()```）等等
+- 在下面的示例中，```|&x| *x >= 42``` 是一个执行相同比较的闭包。```|x| println!("{x}")``` 是另一个闭包
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -79,8 +79,8 @@ fn main() {
 }
 ```
 
-# Rust iterators
-- A key feature of iterators is that most of them are ```lazy```, i.e., they do not do anything until they are evaluated. For example, ```a.iter().filter(|&x| *x >= 42);``` wouldn't have done *anything* without the ```for_each```. The Rust compiler emits an explicit warning when it detects such a situation
+# Rust 迭代器
+- 迭代器的一个关键特性是大多数都是```惰性```的，也就是说，在被求值之前它们什么都不做。例如，```a.iter().filter(|&x| *x >= 42);``` 没有 ```for_each``` 就不会执行*任何操作*。Rust 编译器在检测到这种情况时会发出明确的警告
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -94,9 +94,9 @@ fn main() {
 }
 ```
 
-# Rust iterators
-- The ```collect()``` method can be used to gather the results into a separate collection
-    - In the below the ```_``` in ```Vec<_>``` is the equivalent of a wildcard character for the type returned by the ```map```. For example, we can even return a ```String``` from ```map``` 
+# Rust 迭代器
+- ```collect()``` 方法可用于将结果收集到一个单独的集合中
+    - 下面 ```Vec<_>``` 中的 ```_``` 等同于 ```map``` 返回类型的通配符。例如，我们甚至可以从 ```map``` 返回 ```String``` 
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -112,11 +112,11 @@ fn main() {
 }
 ```
 
-# Exercise: Rust iterators
+# 练习：Rust 迭代器
 
-🟢 **Starter**
-- Create an integer array composed of odd and even elements. Iterate over the array and split it into two different vectors with even and odd elements in each
-- Can this be done in a single pass (hint: use ```partition()```)?
+🟢 **入门级**
+- 创建一个由奇数和偶数元素组成的整数数组。遍历数组并将其拆分到两个不同的向量中，每个向量分别包含偶数和奇数元素
+- 能否在单次遍历中完成（提示：使用 ```partition()```）？
 
 <details><summary>Solution (click to expand)</summary>
 
@@ -155,13 +155,11 @@ fn main() {
 
 > **Production patterns**: See [Collapsing assignment pyramids with closures](ch17-3-collapsing-assignment-pyramids.md#collapsing-assignment-pyramids-with-closures) for real iterator chains (`.map().collect()`, `.filter().collect()`, `.find_map()`) from production Rust code.
 
-### Iterator power tools: the methods that replace C++ loops
+### 迭代器强力工具：替代 C++ 循环的方法
 
-The following iterator adapters are used *extensively* in production Rust code. C++ has
-`<algorithm>` and C++20 ranges, but Rust's iterator chains are more composable
-and more commonly used.
+以下迭代器适配器在生产级 Rust 代码中被*广泛*使用。C++ 有 `<algorithm>` 和 C++20 ranges，但 Rust 的迭代器链更具可组合性，也更常用。
 
-#### `enumerate` — index + value (replaces `for (int i = 0; ...)`)
+#### `enumerate` — 索引 + 值（替代 `for (int i = 0; ...)`）
 
 ```rust
 let sensors = vec!["temp0", "temp1", "temp2"];
@@ -175,7 +173,7 @@ for (idx, name) in sensors.iter().enumerate() {
 
 C++ equivalent: `for (size_t i = 0; i < sensors.size(); ++i) { auto& name = sensors[i]; ... }`
 
-#### `zip` — pair elements from two iterators (replaces parallel index loops)
+#### `zip` — 将两个迭代器的元素配对（替代并行索引循环）
 
 ```rust
 let names = ["gpu0", "gpu1", "gpu2"];
@@ -193,7 +191,7 @@ println!("{report:?}");
 
 C++ equivalent: `for (size_t i = 0; i < std::min(names.size(), temps.size()); ++i) { ... }`
 
-#### `flat_map` — map + flatten nested collections
+#### `flat_map` — 映射 + 展平嵌套集合
 
 ```rust
 // Each GPU has multiple PCIe BDFs; collect all BDFs across all GPUs
@@ -212,7 +210,7 @@ println!("{all_bdfs:?}");
 
 C++ equivalent: nested `for` loop pushing into a single vector.
 
-#### `chain` — concatenate two iterators
+#### `chain` — 连接两个迭代器
 
 ```rust
 let critical_gpus = vec!["gpu0", "gpu3"];
@@ -224,7 +222,7 @@ for gpu in critical_gpus.iter().chain(warning_gpus.iter()) {
 }
 ```
 
-#### `windows` and `chunks` — sliding/fixed-size views over slices
+#### `windows` 和 `chunks` — 切片上的滑动/固定大小视图
 
 ```rust
 let temps = [70, 72, 75, 73, 71, 68, 65];
@@ -246,7 +244,7 @@ for pair in temps.chunks(2) {
 
 C++ equivalent: manual index arithmetic with `i` and `i+1`/`i+2`.
 
-#### `fold` — accumulate into a single value (replaces `std::accumulate`)
+#### `fold` — 累积为单个值（替代 `std::accumulate`）
 
 ```rust
 let errors = vec![
@@ -270,7 +268,7 @@ println!("Total errors: {total}, details: {summary}");
 // Total errors: 11, details: gpu0:3 gpu2:7 gpu3:1
 ```
 
-#### `scan` — stateful transform (running total, delta detection)
+#### `scan` — 有状态转换（运行总计、增量检测）
 
 ```rust
 let readings = [100, 105, 103, 110, 108];
@@ -287,18 +285,18 @@ let deltas: Vec<i32> = readings.iter()
 println!("Deltas: {deltas:?}"); // [5, -2, 7, -2]
 ```
 
-#### Quick reference: C++ loop → Rust iterator
+#### 快速参考：C++ 循环 → Rust 迭代器
 
-| **C++ Pattern** | **Rust Iterator** | **Example** |
+| **C++ 模式** | **Rust 迭代器** | **示例** |
 |----------------|------------------|------------|
 | `for (int i = 0; i < v.size(); i++)` | `.enumerate()` | `v.iter().enumerate()` |
-| Parallel iteration with index | `.zip()` | `a.iter().zip(b.iter())` |
-| Nested loop → flat result | `.flat_map()` | `vecs.iter().flat_map(\|v\| v.iter())` |
-| Concatenate two containers | `.chain()` | `a.iter().chain(b.iter())` |
-| Sliding window `v[i..i+n]` | `.windows(n)` | `v.windows(3)` |
-| Process in fixed-size groups | `.chunks(n)` | `v.chunks(4)` |
-| `std::accumulate` / manual accumulator | `.fold()` | `.fold(init, \|acc, x\| ...)` |
-| Running total / delta tracking | `.scan()` | `.scan(state, \|s, x\| ...)` |
+| 带索引的并行迭代 | `.zip()` | `a.iter().zip(b.iter())` |
+| 嵌套循环 → 扁平结果 | `.flat_map()` | `vecs.iter().flat_map(\|v\| v.iter())` |
+| 连接两个容器 | `.chain()` | `a.iter().chain(b.iter())` |
+| 滑动窗口 `v[i..i+n]` | `.windows(n)` | `v.windows(3)` |
+| 固定大小分组处理 | `.chunks(n)` | `v.chunks(4)` |
+| `std::accumulate` / 手动累加器 | `.fold()` | `.fold(init, \|acc, x\| ...)` |
+| 运行总计 / 增量跟踪 | `.scan()` | `.scan(state, \|s, x\| ...)` |
 | `while (it != end && count < n) { ++it; ++count; }` | `.take(n)` | `.iter().take(5)` |
 | `while (it != end && !pred(*it)) { ++it; }` | `.skip_while()` | `.skip_while(\|x\| x < &threshold)` |
 | `std::any_of` | `.any()` | `.iter().any(\|x\| x > &limit)` |
@@ -306,18 +304,17 @@ println!("Deltas: {deltas:?}"); // [5, -2, 7, -2]
 | `std::none_of` | `!.any()` | `!iter.any(\|x\| x.failed())` |
 | `std::count_if` | `.filter().count()` | `.filter(\|x\| x > &0).count()` |
 | `std::min_element` / `std::max_element` | `.min()` / `.max()` | `.iter().max()` → `Option<&T>` |
-| `std::unique` | `.dedup()` (on sorted) | `v.dedup()` (in-place on Vec) |
+| `std::unique` | `.dedup()` (对已排序) | `v.dedup()` (Vec 就地) |
 
-### Exercise: Iterator chains
+### 练习：迭代器链
 
-Given sensor data as `Vec<(String, f64)>` (name, temperature), write a **single
-iterator chain** that:
-1. Filters sensors with temp > 80.0
-2. Sorts them by temperature (descending)
-3. Formats each as `"{name}: {temp}°C [ALARM]"`
-4. Collects into `Vec<String>`
+给定传感器数据为 `Vec<(String, f64)>`（名称，温度），编写一个**单一迭代器链**来：
+1. 过滤温度 > 80.0 的传感器
+2. 按温度排序（降序）
+3. 格式化为 `"{name}: {temp}°C [ALARM]"`
+4. 收集到 `Vec<String>`
 
-Hint: you'll need `.collect()` before `.sort_by()`, since sorting requires a `Vec`.
+提示：你需要在 `.sort_by()` 之前使用 `.collect()`，因为排序需要 `Vec`。
 
 <details><summary>Solution (click to expand)</summary>
 
@@ -354,12 +351,12 @@ fn main() {
 
 ----
 
-# Rust iterators
-- The ```Iterator``` trait is used to implement iteration over user defined types (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
-    - In the example, we'll implement an iterator for the Fibonacci sequence, which starts with 1, 1, 2, ... and the successor is the sum of the previous two numbers
-    - The ```associated type``` in the ```Iterator``` (```type Item = u32;```) defines the output type from our iterator (```u32```)
-    - The ```next()``` method simply contains the logic for implementing our iterator. In this case, all state information is available in the ```Fibonacci``` structure
-    - We could have implemented another trait called ```IntoIterator``` to implement the ```into_iter()``` method for more specialized iterators
-    - [▶ Try it in the Rust Playground](https://play.rust-lang.org/)
+# Rust 迭代器
+- ```Iterator``` trait 用于实现对用户定义类型的迭代（https://doc.rust-lang.org/std/iter/trait.IntoIterator.html）
+    - 在示例中，我们将为斐波那契序列实现一个迭代器，它从 1, 1, 2, ... 开始，后继是前两个数字之和
+    - ```Iterator``` 中的```关联类型```（```type Item = u32;```）定义了迭代器的输出类型（```u32```）
+    - ```next()``` 方法简单包含了实现迭代器的逻辑。在这种情况下，所有状态信息都可在 ```Fibonacci``` 结构中获得
+    - 我们本可以实现另一个名为 ```IntoIterator``` 的 trait 来为更专门的迭代器实现 ```into_iter()``` 方法
+    - [▶ 在 Rust Playground 中尝试](https://play.rust-lang.org/)
 
 

@@ -1,74 +1,74 @@
-## Async Programming: C# Task vs Rust Future
+## 异步编程：C# Task vs Rust Future
 
-> **What you'll learn:** Rust's lazy `Future` vs C#'s eager `Task`, the executor model (tokio),
-> cancellation via `Drop` + `select!` vs `CancellationToken`, and real-world patterns for concurrent requests.
+> **你将学到：** Rust 的惰性 `Future` 与 C# 的即时 `Task`，执行器模型（tokio），
+> 通过 `Drop` + `select!` 实现取消 vs `CancellationToken`，以及并发请求的真实场景模式。
 >
-> **Difficulty:** 🔴 Advanced
+> **难度：** 🔴 高级
 
-C# developers are deeply familiar with `async`/`await`. Rust uses the same keywords but with a fundamentally different execution model.
+C# 开发者对 `async`/`await` 非常熟悉。Rust 使用相同的关键字，但执行模型有着本质的不同。
 
-### The Executor Model
+### 执行器模型
 
 ```csharp
-// C# — The runtime provides a built-in thread pool and task scheduler
-// async/await "just works" out of the box
+// C# — 运行时提供了内置的线程池和任务调度器
+// async/await 开箱即用
 public async Task<string> FetchDataAsync(string url)
 {
     using var client = new HttpClient();
-    return await client.GetStringAsync(url);  // Scheduled by .NET thread pool
+    return await client.GetStringAsync(url);  // 由 .NET 线程池调度
 }
-// .NET manages the thread pool, task scheduling, and synchronization context
+// .NET 管理线程池、任务调度和同步上下文
 ```
 
 ```rust
-// Rust — No built-in async runtime. You choose an executor.
-// The most popular is tokio.
+// Rust — 没有内置的异步运行时。你需要选择一个执行器。
+// 最流行的是 tokio。
 async fn fetch_data(url: &str) -> Result<String, reqwest::Error> {
     let body = reqwest::get(url).await?.text().await?;
     Ok(body)
 }
 
-// You MUST have a runtime to execute async code:
-#[tokio::main]  // This macro sets up the tokio runtime
+// 你必须有一个运行时来执行异步代码：
+#[tokio::main]  // 这个宏设置了 tokio 运行时
 async fn main() {
     let data = fetch_data("https://example.com").await.unwrap();
     println!("{}", &data[..100]);
 }
 ```
 
-### Future vs Task
+### Future 与 Task
 
 | | C# `Task<T>` | Rust `Future<Output = T>` |
 |---|---|---|
-| **Execution** | Starts immediately when created | **Lazy** — does nothing until `.await`ed |
-| **Runtime** | Built-in (CLR thread pool) | External (tokio, async-std, etc.) |
-| **Cancellation** | `CancellationToken` | Drop the `Future` (or `tokio::select!`) |
-| **State machine** | Compiler-generated | Compiler-generated |
-| **Size** | Heap-allocated | Stack-allocated until boxed |
+| **执行** | 创建后立即开始 | **惰性** — 直到 `.await` 才执行 |
+| **运行时** | 内置（CLR 线程池） | 外部（tokio、async-std 等） |
+| **取消** | `CancellationToken` | 丢弃 `Future`（或 `tokio::select!`） |
+| **状态机** | 编译器生成 | 编译器生成 |
+| **大小** | 堆分配 | 栈分配直到装箱 |
 
 ```rust
-// IMPORTANT: Futures are lazy in Rust!
+// 重要：Future 在 Rust 中是惰性的！
 async fn compute() -> i32 { println!("Computing!"); 42 }
 
-let future = compute();  // Nothing printed! Future not polled yet.
-let result = future.await; // NOW "Computing!" is printed
+let future = compute();  // 什么都没有打印！Future 还未被轮询。
+let result = future.await; // 现在才打印 "Computing!"
 ```
 
 ```csharp
-// C# Tasks start immediately!
-var task = ComputeAsync();  // "Computing!" printed immediately
-var result = await task;    // Just waits for completion
+// C# Task 立即开始！
+var task = ComputeAsync();  // "Computing!" 立即打印
+var result = await task;    // 只是等待完成
 ```
 
-### Cancellation: CancellationToken vs Drop / select!
+### 取消：CancellationToken vs Drop / select!
 
 ```csharp
-// C# — Cooperative cancellation with CancellationToken
+// C# — 通过 CancellationToken 进行协作取消
 public async Task ProcessAsync(CancellationToken ct)
 {
     while (!ct.IsCancellationRequested)
     {
-        await Task.Delay(1000, ct);  // Throws if cancelled
+        await Task.Delay(1000, ct);  // 如果取消则抛出异常
         DoWork();
     }
 }
@@ -78,7 +78,7 @@ await ProcessAsync(cts.Token);
 ```
 
 ```rust
-// Rust — Cancellation by dropping the future, or with tokio::select!
+// Rust — 通过丢弃 future 或使用 tokio::select! 来取消
 use tokio::time::{sleep, Duration};
 
 async fn process() {
@@ -88,21 +88,21 @@ async fn process() {
     }
 }
 
-// Timeout pattern with select!
+// 使用 select! 的超时模式
 async fn run_with_timeout() {
     tokio::select! {
         _ = process() => { println!("Completed"); }
         _ = sleep(Duration::from_secs(5)) => { println!("Timed out!"); }
     }
-    // When select! picks the timeout branch, the process() future is DROPPED
-    // —  automatic cleanup, no CancellationToken needed
+    // 当 select! 选择超时分支时，process() future 被丢弃
+    // — 自动清理，无需 CancellationToken
 }
 ```
 
-### Real-World Pattern: Concurrent Requests with Timeout
+### 真实场景模式：带超时的并发请求
 
 ```csharp
-// C# — Concurrent HTTP requests with timeout
+// C# — 带超时的并发 HTTP 请求
 public async Task<string[]> FetchAllAsync(string[] urls, CancellationToken ct)
 {
     var tasks = urls.Select(url => httpClient.GetStringAsync(url, ct));
@@ -111,7 +111,7 @@ public async Task<string[]> FetchAllAsync(string[] urls, CancellationToken ct)
 ```
 
 ```rust
-// Rust — Concurrent requests with tokio::join! or futures::join_all
+// Rust — 使用 tokio::join! 或 futures::join_all 实现并发请求
 use futures::future::join_all;
 
 async fn fetch_all(urls: &[&str]) -> Vec<Result<String, reqwest::Error>> {
@@ -125,7 +125,7 @@ async fn fetch_all(urls: &[&str]) -> Vec<Result<String, reqwest::Error>> {
     results
 }
 
-// With timeout:
+// 带超时：
 async fn fetch_all_with_timeout(urls: &[&str]) -> Result<Vec<String>, &'static str> {
     tokio::time::timeout(
         Duration::from_secs(10),
@@ -144,17 +144,17 @@ async fn fetch_all_with_timeout(urls: &[&str]) -> Result<Vec<String>, &'static s
 ```
 
 <details>
-<summary><strong>🏋️ Exercise: Async Timeout Pattern</strong> (click to expand)</summary>
+<summary><strong>🏋️ 练习：异步超时模式</strong>（点击展开）</summary>
 
-**Challenge**: Write an async function that fetches from two URLs concurrently, returns whichever responds first, and cancels the other. (This is `Task.WhenAny` in C#.)
+**挑战**：编写一个异步函数，从两个 URL 并发获取数据，返回最先响应的那个，并取消另一个。（这相当于 C# 中的 `Task.WhenAny`。）
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 解答</summary>
 
 ```rust
 use tokio::time::{sleep, Duration};
 
-// Simulated async fetch
+// 模拟异步获取
 async fn fetch(url: &str, delay_ms: u64) -> String {
     sleep(Duration::from_millis(delay_ms)).await;
     format!("Response from {url}")
@@ -171,7 +171,7 @@ async fn fetch_first(url1: &str, url2: &str) -> String {
             result
         }
     }
-    // The losing branch's future is automatically dropped (cancelled)
+    // 失败分支的 future 会自动被丢弃（取消）
 }
 
 #[tokio::main]
@@ -181,72 +181,71 @@ async fn main() {
 }
 ```
 
-**Key takeaway**: `tokio::select!` is Rust's equivalent of `Task.WhenAny` — it races multiple futures, completes when the first one finishes, and drops (cancels) the rest.
+**关键要点**：`tokio::select!` 是 Rust 中 `Task.WhenAny` 的等价物 — 它让多个 future 竞争，第一个完成时结束，并丢弃（取消）其余的。
 
 </details>
 </details>
 
-### Spawning Independent Tasks with `tokio::spawn`
+### 使用 `tokio::spawn` 生成独立任务
 
-In C#, `Task.Run` launches work that runs independently of the caller. Rust's equivalent is `tokio::spawn`:
+在 C# 中，`Task.Run` 启动独立于调用者运行的工作。Rust 中的等价物是 `tokio::spawn`：
 
 ```rust
 use tokio::task;
 
 async fn background_work() {
-    // Runs independently — even if the caller's future is dropped
+    // 独立运行 — 即使调用者的 future 被丢弃
     let handle = task::spawn(async {
         tokio::time::sleep(Duration::from_secs(2)).await;
         42
     });
 
-    // Do other work while the spawned task runs...
+    // 在派生的任务运行的同时做其他工作...
     println!("Doing other work");
 
-    // Await the result when you need it
+    // 需要时等待结果
     let result = handle.await.unwrap(); // 42
 }
 ```
 
 ```csharp
-// C# equivalent
+// C# 等价代码
 var task = Task.Run(async () => {
     await Task.Delay(2000);
     return 42;
 });
-// Do other work...
+// 做其他工作...
 var result = await task;
 ```
 
-**Key difference**: A regular `async {}` block is lazy — it does nothing until awaited. `tokio::spawn` launches it on the runtime immediately, like C#'s `Task.Run`.
+**关键区别**：普通的 `async {}` 块是惰性的 — 直到被 await 才会执行。`tokio::spawn` 立即在运行时启动它，就像 C# 的 `Task.Run`。
 
-### Pin: Why Rust Async Has a Concept C# Doesn't
+### Pin：为什么 Rust 异步有一个 C# 没有的概念
 
-C# developers never encounter `Pin` — the CLR's garbage collector moves objects freely and updates all references automatically. Rust has no GC. When the compiler transforms an `async fn` into a state machine, that struct may contain internal pointers to its own fields. Moving the struct would invalidate those pointers.
+C# 开发者从不遇到 `Pin` — CLR 的垃圾回收器自由地移动对象并自动更新所有引用。Rust 没有 GC。当编译器将 `async fn` 转换为状态机时，该结构体可能包含指向自身字段的内部指针。移动该结构体会使这些指针失效。
 
-`Pin<T>` is a wrapper that says: **"this value will not be moved in memory."**
+`Pin<T>` 是一个包装器，表示：**"这个值在内存中不会被移动。"**
 
 ```rust
-// You'll see Pin in these contexts:
+// 你会在这些上下文中看到 Pin：
 trait Future {
     type Output;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;
-    //           ^^^^^^^^^^^^^^ pinned — internal references stay valid
+    //           ^^^^^^^^^^^^^^ 被固定 — 内部引用保持有效
 }
 
-// Returning a boxed future from a trait:
+// 从 trait 返回装箱的 future：
 fn make_future() -> Pin<Box<dyn Future<Output = i32> + Send>> {
     Box::pin(async { 42 })
 }
 ```
 
-**In practice, you almost never write `Pin` yourself.** The `async fn` and `.await` syntax handles it. You'll encounter it only in:
-- Compiler error messages (follow the suggestion)
-- `tokio::select!` (use the `pin!()` macro)
-- Trait methods returning `dyn Future` (use `Box::pin(async { ... })`)
+**实际上，你几乎不需要自己写 `Pin`。** `async fn` 和 `.await` 语法会处理它。你只会在以下场景中遇到它：
+- 编译器错误消息（按照建议操作）
+- `tokio::select!`（使用 `pin!()` 宏）
+- 返回 `dyn Future` 的 trait 方法（使用 `Box::pin(async { ... })`）
 
-> **Want the deep dive?** The companion [Async Rust Training](../../async-book/src/ch04-pin-and-unpin.md) covers Pin, Unpin, self-referential structs, and structural pinning in full detail.
+> **想要深入了解？** 配套的 [Async Rust Training](../../async-book/src/ch04-pin-and-unpin.md) 完整涵盖了 Pin、Unpin、自引用结构和结构化 pinning。
 
 ***
-
 

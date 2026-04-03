@@ -2,8 +2,8 @@
 
 > **你将学到什么：** Rust 的生命周期系统如何确保引用永远不会悬空——从隐式生命周期到显式注解，再到使大多数代码无需注解的三个省略规则。在进入下一节的智能指针之前，理解这里的生命周期至关重要。
 
-- Rust 强制执行一个可变引用和任意数量的不可变引用
-    - 任何引用的生命周期必须至少与原始所属生命周期一样长。这些是隐式生命周期，由编译器推断（见 https://doc.rust-lang.org/nomicon/lifetime-elision.html）
+- Rust 强制执行一个可变引用和任意数量的不可变引用的规则
+    - 任何引用的生命周期必须至少与该引用所属的生命周期一样长。这些是隐式生命周期，由编译器推断（见 https://doc.rust-lang.org/nomicon/lifetime-elision.html）
 ```rust
 fn borrow_mut(x: &mut u32) {
     *x = 43;
@@ -23,7 +23,7 @@ fn main() {
 # Rust 生命周期注解
 - 处理多个生命周期时需要显式生命周期注解
     - 生命周期用 `'` 表示，可以是任何标识符（`'a`、`'b`、`'static` 等）
-    - 当编译器无法弄清楚引用应该存活多久时，需要帮助
+    - 当编译器无法弄清楚引用应该存活多久时，需要你来帮助
 - **常见场景**：函数返回引用，但它来自哪个输入？
 ```rust
 #[derive(Debug)]
@@ -90,7 +90,7 @@ fn main() {
 
 编写一个函数 `fn first_word(s: &str) -> &str`，返回字符串中第一个由空白分隔的单词。思考为什么这可以在没有显式生命周期注解的情况下编译（提示：省略规则 #1 和 #2）。
 
-<details><summary>解决方案（点击展开）</summary>
+<details><summary>答案（点击展开）</summary>
 
 ```rust
 fn first_word(s: &str) -> &str {
@@ -135,7 +135,7 @@ fn main() {
 }
 ```
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>答案（点击展开）</summary>
 
 ```rust
 struct SliceStore<'a> {
@@ -192,40 +192,40 @@ flowchart TD
     style ERR fill:#ff6b6b,color:#000
 ```
 
-### Rule-by-Rule Examples
+### 逐规则详解
 
-**Rule 1** — each input reference gets its own lifetime parameter:
+**规则 1** — 每个输入引用获得自己的生命周期参数：
 ```rust
-// What you write:
+// 你写的代码:
 fn first_word(s: &str) -> &str { ... }
 
-// What the compiler sees after Rule 1:
+// 编译器应用规则 1 后看到的:
 fn first_word<'a>(s: &'a str) -> &str { ... }
-// Only one input lifetime → Rule 2 applies
+// 只有一个输入生命周期 → 规则 2 适用
 ```
 
-**Rule 2** — single input lifetime propagates to all outputs:
+**规则 2** — 单个输入生命周期传播到所有输出：
 ```rust
-// After Rule 2:
+// 应用规则 2 后:
 fn first_word<'a>(s: &'a str) -> &'a str { ... }
-// ✅ All output lifetimes determined — no annotation needed!
+// ✅ 所有输出生命周期都已确定 — 不需要注解！
 ```
 
-**Rule 3** — `&self` lifetime propagates to outputs:
+**规则 3** — `&self` 生命周期传播到输出：
 ```rust
-// What you write:
+// 你写的代码:
 impl SliceStore<'_> {
     fn get_slice(&self) -> &str { self.slice }
 }
 
-// What the compiler sees after Rules 1 + 3:
+// 编译器应用规则 1 + 3 后看到的:
 impl SliceStore<'_> {
     fn get_slice<'a>(&'a self) -> &'a str { self.slice }
 }
-// ✅ No annotation needed — &self lifetime used for output
+// ✅ 不需要注解 — &self 的生命周期用于输出
 ```
 
-**When elision fails** — you must annotate:
+**当省略失败时** — 必须添加注解：
 ```rust
 // Two input references, no &self → Rules 2 and 3 don't apply
 // fn longest(a: &str, b: &str) -> &str  ← WON'T COMPILE
@@ -236,34 +236,32 @@ fn longest<'a>(a: &'a str, b: &'a str) -> &'a str {
 }
 ```
 
-### C Programmer Mental Model
+### C 程序员的思维模型
 
-In C, every pointer is independent — the programmer mentally tracks which allocation
-each pointer refers to, and the compiler trusts you completely. In Rust, lifetimes make
-this tracking **explicit and compiler-verified**:
+在 C 中，每个指针都是独立的——程序员在脑子里追踪每个指针指向哪个分配，编译器完全信任你。在 Rust 中，生命周期使这种追踪变得**显式且经过编译器验证**：
 
-| C | Rust | What happens |
+| C | Rust | 发生了什么 |
 |---|------|-------------|
-| `char* get_name(struct User* u)` | `fn get_name(&self) -> &str` | Rule 3 elides: output borrows from `self` |
-| `char* concat(char* a, char* b)` | `fn concat<'a>(a: &'a str, b: &'a str) -> &'a str` | Must annotate — two inputs |
-| `void process(char* in, char* out)` | `fn process(input: &str, output: &mut String)` | No output reference — no lifetime needed |
-| `char* buf; /* who owns this? */` | Compile error if lifetime is wrong | Compiler catches dangling pointers |
+| `char* get_name(struct User* u)` | `fn get_name(&self) -> &str` | 规则 3 省略：输出借用了 `self` |
+| `char* concat(char* a, char* b)` | `fn concat<'a>(a: &'a str, b: &'a str) -> &'a str` | 必须注解 — 两个输入 |
+| `void process(char* in, char* out)` | `fn process(input: &str, output: &mut String)` | 没有输出引用 — 不需要生命周期 |
+| `char* buf; /* 谁拥有这个？ */` | 如果生命周期错误则编译错误 | 编译器捕获悬空指针 |
 
 ### `'static` 生命周期
 
 `'static` 意味着引用在**整个程序运行期间**有效。它是 C 全局变量或字符串字面量的 Rust 等价物：
 
 ```rust
-// String literals are always 'static — they live in the binary's read-only section
-let s: &'static str = "hello";  // Same as: static const char* s = "hello"; in C
+// 字符串字面量总是 'static — 它们存在于二进制文件的只读段中
+let s: &'static str = "hello";  // 等同于 C 中的: static const char* s = "hello";
 
-// Constants are also 'static
+// 常量也是 'static
 static GREETING: &str = "hello";
 
-// Common in trait bounds for thread spawning:
+// 在线程生成的 trait bound 中很常见:
 fn spawn<F: FnOnce() + Send + 'static>(f: F) { /* ... */ }
-// 'static here means: "the closure must not borrow any local variables"
-// (either move them in, or use only 'static data)
+// 这里的 'static 意味着: "闭包不能借用任何局部变量"
+// (要么将它们移入，要么只使用 'static 数据)
 ```
 
 ### 练习：预测省略
@@ -274,44 +272,44 @@ fn spawn<F: FnOnce() + Send + 'static>(f: F) { /* ... */ }
 如果没有，添加必要的注解：
 
 ```rust
-// 1. Can the compiler elide?
+// 1. 编译器可以省略吗？
 fn trim_prefix(s: &str) -> &str { &s[1..] }
 
-// 2. Can the compiler elide?
+// 2. 编译器可以省略吗？
 fn pick(flag: bool, a: &str, b: &str) -> &str {
     if flag { a } else { b }
 }
 
-// 3. Can the compiler elide?
+// 3. 编译器可以省略吗？
 struct Parser { data: String }
 impl Parser {
     fn next_token(&self) -> &str { &self.data[..5] }
 }
 
-// 4. Can the compiler elide?
+// 4. 编译器可以省略吗？
 fn split_at(s: &str, pos: usize) -> (&str, &str) {
     (&s[..pos], &s[pos..])
 }
 ```
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>答案（点击展开）</summary>
 
 ```rust,ignore
-// 1. YES — Rule 1 gives 'a to s, Rule 2 propagates to output
+// 1. 可以 — 规则 1 给 s 分配 'a，规则 2 传播到输出
 fn trim_prefix(s: &str) -> &str { &s[1..] }
 
-// 2. NO — Two input references, no &self. Must annotate:
+// 2. 不可以 — 两个输入引用，没有 &self。必须注解:
 fn pick<'a>(flag: bool, a: &'a str, b: &'a str) -> &'a str {
     if flag { a } else { b }
 }
 
-// 3. YES — Rule 1 gives 'a to &self, Rule 3 propagates to output
+// 3. 可以 — 规则 1 给 &self 分配 'a，规则 3 传播到输出
 impl Parser {
     fn next_token(&self) -> &str { &self.data[..5] }
 }
 
-// 4. YES — Rule 1 gives 'a to s (only one input reference),
-//    Rule 2 propagates to BOTH outputs. Both slices borrow from s.
+// 4. 可以 — 规则 1 给 s 分配 'a（只有一个输入引用），
+//    规则 2 传播到两个输出。两个切片都借用了 s。
 fn split_at(s: &str, pos: usize) -> (&str, &str) {
     (&s[..pos], &s[pos..])
 }

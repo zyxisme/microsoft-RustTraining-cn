@@ -35,7 +35,7 @@ fn main() {
 }
 ```
 
-### Simple FFI example (Rust library function consumed by C)
+### 简单的 FFI 示例（Rust 库函数供 C 调用）
 
 ## FFI 字符串：CString 和 CStr
 
@@ -75,7 +75,7 @@ fn demo_ffi_strings() {
         left + right
     }
     ```
-- We'll compile the following C-code and link it against our static library.
+- 我们将编译以下 C 代码并将其链接到我们的静态库。
     ```
     #include <stdio.h>
     #include <stdint.h>
@@ -85,14 +85,14 @@ fn demo_ffi_strings() {
     }
     ``` 
 
-### Complex FFI example
-- In the following examples, we'll create a Rust logging interface and expose it to
-[PYTHON] and ```C```
-    - We'll see how the same interface can be used natively from Rust and C
-    - We will explore the use of tools like ```cbindgen``` to generate header files for ```C```
-    - We will see how ```unsafe``` wrappers can act as a bridge to safe Rust code
+### 复杂的 FFI 示例
+- 在以下示例中，我们将创建一个 Rust 日志接口并将其暴露给
+[PYTHON] 和 ```C```
+    - 我们将看到如何从 Rust 和 C 原生使用相同的接口
+    - 我们将探索使用 ```cbindgen``` 等工具为 ```C``` 生成头文件
+    - 我们将看到 ```unsafe``` 包装器如何充当安全 Rust 代码的桥梁
 
-## Logger helper functions
+## 日志辅助函数
 ```rust
 fn create_or_open_log_file(log_file: &str, overwrite: bool) -> Result<File, String> {
     if overwrite {
@@ -113,7 +113,7 @@ fn log_to_file(file_handle: &mut File, message: &str) -> Result<(), String> {
 }
 ```
 
-## Logger struct
+## Logger 结构体
 ```rust
 struct SimpleLogger {
     log_level: LogLevel,
@@ -141,10 +141,10 @@ impl SimpleLogger {
 }
 ```
 
-## Testing
-- Testing functionality with Rust is trivial
-    - Test methods are decorated with ```#[test]```, and aren't part of the compiled binary 
-    - It's easy to create mock methods for testing purposes
+## 测试
+- 使用 Rust 测试功能很简单
+    - 测试方法用 ```#[test]``` 装饰，不属于编译后的二进制文件
+    - 很容易创建用于测试目的的 mock 方法
 ```rust
 #[test]
 fn testfunc() -> Result<(), String> {
@@ -159,15 +159,15 @@ cargo test
 ```
 
 ## (C)-Rust FFI
-- cbindgen is a great tool for generating header files for exported Rust functions
-    - Can be installed using cargo
+- cbindgen 是一个很棒的工具，可以为导出的 Rust 函数生成头文件
+    - 可以使用 cargo 安装
 ```bash
 cargo install cbindgen
 cbindgen 
 ```
-- Function and structures can be exported using ```#[no_mangle]``` and ```#[repr(C)]```
-    - We'll assume the common interface pattern passing in a `**` to the actual implementation and returning 0 on success and non-zero on error
-    - **Opaque vs transparent structs**: Our `SimpleLogger` is passed as an *opaque pointer* (`*mut SimpleLogger`) — the C side never accesses its fields, so `#[repr(C)]` is **not** needed. Use `#[repr(C)]` when C code needs to read/write struct fields directly:
+- 函数和结构体可以使用 ```#[no_mangle]``` 和 ```#[repr(C)]``` 导出
+    - 我们将采用常见的接口模式，将 `**` 传递给实际实现，成功返回 0，错误返回非零值
+    - **Opaque vs transparent structs**：我们的 `SimpleLogger` 作为*不透明指针*（` *mut SimpleLogger`）传递 — C 端从不访问其字段，所以不需要 `#[repr(C)]`。当 C 代码需要直接读写结构体字段时使用 `#[repr(C)]`：
 
 ```rust
 // Opaque — C only holds a pointer, never inspects fields. No #[repr(C)] needed.
@@ -187,8 +187,8 @@ uint32_t log_entry(struct SimpleLogger *logger, const char *message);
 uint32_t drop_logger(struct SimpleLogger *logger);
 ```
 
-- Note that we need to a lot of sanity checks
-- We have to explicitly leak memory to prevent Rust from automatically deallocating
+- 注意，我们需要进行大量的健全性检查
+- 我们必须显式泄漏内存以防止 Rust 自动释放
 ```rust
 #[no_mangle] 
 pub extern "C" fn create_simple_logger(file_name: *const std::os::raw::c_char, out_logger: *mut *mut SimpleLogger) -> u32 {
@@ -224,7 +224,7 @@ pub extern "C" fn create_simple_logger(file_name: *const std::os::raw::c_char, o
 }
 ```
 
-- We have similar error checks in ```log_entry()```
+- 在 ```log_entry()``` 中我们有类似的错误检查
 ```rust
 #[no_mangle]
 pub extern "C" fn log_entry(logger: *mut SimpleLogger, message: *const std::os::raw::c_char) -> u32 {
@@ -261,7 +261,7 @@ pub extern "C" fn drop_logger(logger: *mut SimpleLogger) -> u32 {
 }
 ```
 
-- We can test our (C)-FFI using Rust, or by writing a (C)-program
+- 我们可以使用 Rust 测试我们的 (C)-FFI，或者通过编写 (C) 程序
 ```rust
 #[test]
 fn test_c_logger() {
@@ -288,18 +288,18 @@ int main() {
 }
 ```
 
-## Ensuring correctness of unsafe code
-- The TL;DR version is that using ```unsafe``` requires deliberate thought
-    - Always document the safety assumptions made by the code and review it with experts
-    - Use tools like cbindgen, Miri, Valgrind that can help verify correctness
-    - **Never let a panic unwind across an FFI boundary** — this is UB. Use `std::panic::catch_unwind` at FFI entry points, or configure `panic = "abort"` in your profile
-    - If a struct is shared across FFI, mark it `#[repr(C)]` to guarantee C-compatible memory layout
-    - Consult https://doc.rust-lang.org/nomicon/intro.html (the "Rustonomicon" — the dark arts of unsafe Rust)
-    - Seek help of internal experts
+## 确保不安全代码的正确性
+- 简而言之，使用 ```unsafe``` 需要深思熟虑
+    - 始终记录代码所做的安全假设并与专家一起审查
+    - 使用 cbindgen、Miri、Valgrind 等工具来帮助验证正确性
+    - **永远不要让 panic 跨 FFI 边界展开** — 这是 UB。在 FFI 入口点使用 `std::panic::catch_unwind`，或在配置文件中设置 `panic = "abort"`
+    - 如果结构体在 FFI 之间共享，将其标记为 `#[repr(C)]` 以保证 C 兼容的内存布局
+    - 参阅 https://doc.rust-lang.org/nomicon/intro.html（"Rustonomicon" — 不安全 Rust 的黑魔法）
+    - 寻求内部专家的帮助
 
-### Verification tools: Miri vs Valgrind
+### 验证工具：Miri vs Valgrind
 
-C++ developers are familiar with Valgrind and sanitizers. Rust has those **plus** Miri, which is far more precise for Rust-specific UB:
+C++ 开发者对 Valgrind 和 sanitizers 很熟悉。Rust 有这些**加上** Miri，它对 Rust 特有的 UB 更加精确：
 
 | | **Miri** | **Valgrind** | **C++ sanitizers (ASan/MSan/UBSan)** |
 |---|---------|-------------|--------------------------------------|
@@ -310,49 +310,49 @@ C++ developers are familiar with Valgrind and sanitizers. Rust has those **plus*
 | **When to use** | Pure Rust `unsafe` code, data structure invariants | FFI code, full binary integration tests | C/C++ side of FFI, performance-sensitive testing |
 | **Catches aliasing bugs** | ✅ Stacked Borrows model | ❌ | Partially (TSan for data races) |
 
-**Recommendation**: Use **both** — Miri for pure Rust unsafe, Valgrind for FFI integration:
+**建议**：**两者都使用** — Miri 用于纯 Rust unsafe，Valgrind 用于 FFI 集成：
 
-- **Miri** — catches Rust-specific UB that Valgrind cannot see (aliasing violations, invalid enum values, stacked borrows):
+- **Miri** — 捕获 Valgrind 无法看到的 Rust 特有 UB（别名违规、无效枚举值、堆叠借用）：
     ```
     rustup +nightly component add miri
     cargo +nightly miri test                    # Run all tests under Miri
     cargo +nightly miri test -- test_name       # Run a specific test
     ```
-    > ⚠️ Miri requires nightly and cannot execute FFI calls. Isolate unsafe Rust logic into testable units.
+    > ⚠️ Miri 需要 nightly 并且无法执行 FFI 调用。将 unsafe Rust 逻辑隔离到可测试的单元中。
 
-- **Valgrind** — the tool you already know, works on the compiled binary including FFI:
+- **Valgrind** — 你已经熟悉的工具，可对包括 FFI 在内的编译后的二进制文件工作：
     ```
     sudo apt install valgrind
     cargo install cargo-valgrind
     cargo valgrind test                         # Run all tests under Valgrind
     ```
-    > Catches leaks in `Box::leak` / `Box::from_raw` patterns common in FFI code.
+    > 捕获 FFI 代码中常见的 `Box::leak` / `Box::from_raw` 模式的泄漏。
 
-- **cargo-careful** — runs tests with extra runtime checks enabled (between regular tests and Miri):
+- **cargo-careful** — 启用额外运行时检查运行测试（在常规测试和 Miri 之间）：
     ```
     cargo install cargo-careful
     cargo +nightly careful test
     ```
 
-## Unsafe Rust summary
-- ```cbindgen``` is a great tool for (C) FFI to Rust
-    - Use ```bindgen``` for FFI-interfaces in the other direction (consult the extensive documentation)
-- **Do not assume that your unsafe code is correct, or that it's fine to use from safe Rust. It's really easy to make mistakes, and even code that seemingly works correctly can be wrong for subtle reasons**
-    - Use tools to verify correctness
-    - If still in doubt, reach out for expert advice
-- Make sure that your ```unsafe``` code has comments with an explicit documentation about assumptions and why it's correct
-    - Callers of ```unsafe``` code should have corresponding comments on safety as well, and observe restrictions
+## 不安全 Rust 总结
+- ```cbindgen``` 是 (C) FFI 到 Rust 的绝佳工具
+    - 使用 ```bindgen``` 处理另一个方向的 FFI 接口（参阅详细文档）
+- **不要假设你的 unsafe 代码是正确的，或者从安全 Rust 使用它是没问题的。很容易犯错，而且看起来正确运行的代码可能由于微妙的原因而是错误的**
+    - 使用工具验证正确性
+    - 如果仍有疑问，寻求专家建议
+- 确保你的 ```unsafe``` 代码有注释，明确记录假设以及为什么它是正确的
+    - ```unsafe``` 代码的调用者也应该有相应的安全注释，并遵守限制
 
-# Exercise: Writing a safe FFI wrapper
+# 练习：编写安全的 FFI 包装器
 
-🔴 **Challenge** — requires understanding unsafe blocks, raw pointers, and safe API design
+🔴 **挑战** — 需要理解 unsafe 块、原始指针和安全 API 设计
 
-- Write a safe Rust wrapper around an `unsafe` FFI-style function. The exercise simulates calling a C function that writes a formatted string into a caller-provided buffer.
-- **Step 1**: Implement the unsafe function `unsafe_greet` that writes a greeting into a raw `*mut u8` buffer
-- **Step 2**: Write a safe wrapper `safe_greet` that allocates a `Vec<u8>`, calls the unsafe function, and returns a `String`
-- **Step 3**: Add proper `// Safety:` comments to every unsafe block
+- 围绕一个 `unsafe` FFI 样式函数编写一个安全的 Rust 包装器。练习模拟调用一个 C 函数，该函数将格式化的字符串写入调用者提供的缓冲区。
+- **步骤 1**：实现 unsafe 函数 `unsafe_greet`，它将问候语写入原始 `*mut u8` 缓冲区
+- **步骤 2**：编写一个安全包装器 `safe_greet`，分配一个 `Vec<u8>`，调用 unsafe 函数，并返回一个 `String`
+- **步骤 3**：为每个 unsafe 块添加正确的 `// Safety:` 注释
 
-**Starter code:**
+**起始代码：**
 ```rust
 use std::fmt::Write as _;
 
@@ -384,7 +384,7 @@ fn main() {
 }
 ```
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>解决方案（点击展开）</summary>
 
 ```rust
 use std::ffi::CStr;

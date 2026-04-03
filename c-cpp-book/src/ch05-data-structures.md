@@ -360,7 +360,7 @@ fn main() {
 
 #### 1. 无右值引用或通用引用
 
-In C++, `&&` has two meanings depending on context:
+在 C++ 中，`&&` 根据上下文有两种含义：
 
 ```cpp
 // C++: && means different things:
@@ -374,7 +374,7 @@ void forward(T&& arg) {     // NOT an rvalue ref! Deduced as T& or T&&
 }
 ```
 
-**In Rust: none of this exists.** `&&` is simply the logical AND operator.
+**在 Rust 中：这些都不存在。** `&&` 只是逻辑与运算符。
 
 ```rust
 // Rust: && is just boolean AND
@@ -401,7 +401,7 @@ fn process_mut(w: &mut Widget) { } // Borrows mutably (like C++ T&, but exclusiv
 
 #### 2. 移动是位级的——无移动构造函数
 
-In C++, moving is a *user-defined operation* (move constructor / move assignment). In Rust, moving is always a **bitwise memcpy** of the value, and the source is invalidated:
+在 C++ 中，移动是一个*用户定义的操作*（移动构造函数/移动赋值）。在 Rust 中，移动始终是值的**按位 memcpy**，源被标记为无效：
 
 ```rust
 // Rust move = memcpy the bytes, mark source as invalid
@@ -426,7 +426,7 @@ std::cout << s1; // Compiles! Prints... something (empty string, usually)
 
 #### 3. 自动解引用：编译器看穿间接寻址
 
-Rust automatically dereferences through multiple layers of pointers/wrappers via the `Deref` trait. This has no C++ equivalent:
+Rust 通过 `Deref` trait 自动解引用多层指针/包装器。这在 C++ 中没有等价物：
 
 ```rust
 use std::sync::{Arc, Mutex};

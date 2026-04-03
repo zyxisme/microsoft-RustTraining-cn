@@ -1,12 +1,12 @@
-## Incremental Adoption Strategy
+## 增量采用策略
 
-> **What you'll learn:** A phased approach to introducing Rust in a C#/.NET organization —
-> from learning exercises (weeks 1–4) to performance-critical replacements (weeks 5–8)
-> to new microservices (weeks 9–12), with concrete team adoption timelines.
+> **你将学到：** 在 C#/.NET 组织中引入 Rust 的分阶段方法——
+> 从学习实验（第 1-4 周）到性能关键型替换（第 5-8 周）
+> 再到新的微服务（第 9-12 周），包含具体的团队采用时间线。
 >
-> **Difficulty:** 🟡 Intermediate
+> **难度：** 🟡 中级
 
-### Phase 1: Learning and Experimentation (Weeks 1-4)
+### 阶段一：学习与实验（第 1-4 周）
 ```rust
 // Start with command-line tools and utilities
 // Example: Log file analyzer
@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Phase 2: Replace Performance-Critical Components (Weeks 5-8)
+### 阶段二：替换性能关键型组件（第 5-8 周）
 ```rust
 // Replace CPU-intensive data processing
 // Example: Image processing microservice
@@ -120,7 +120,7 @@ struct ProcessingError(String);
 impl warp::reject::Reject for ProcessingError {}
 ```
 
-### Phase 3: New Microservices (Weeks 9-12)
+### 阶段三：新微服务（第 9-12 周）
 ```rust
 // Build new services from scratch in Rust
 // Example: Authentication service
@@ -227,20 +227,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ***
 
-## Team Adoption Timeline
+## 团队采用时间线
 
-### Month 1: Foundation
-**Week 1-2: Syntax and Ownership**
-- Basic syntax differences from C#
-- Understanding ownership, borrowing, and lifetimes
-- Small exercises: CLI tools, file processing
+### 第一个月：基础
+**第 1-2 周：语法和所有权**
+- 与 C# 的基本语法差异
+- 理解所有权、借用和生命周期
+- 小型练习：CLI 工具、文件处理
 
-**Week 3-4: Error Handling and Types**
-- `Result<T, E>` vs exceptions
-- `Option<T>` vs nullable types
-- Pattern matching and exhaustive checking
+**第 3-4 周：错误处理和类型**
+- `Result<T, E>` 与异常
+- `Option<T>` 与可空类型
+- 模式匹配和穷尽性检查
 
-**Recommended exercises:**
+**推荐练习：**
 ```rust
 // Week 1-2: File processor
 fn process_log_file(path: &str) -> Result<Vec<String>, std::io::Error> {
@@ -269,18 +269,18 @@ fn parse_log_entries(json_str: &str) -> Result<Vec<LogEntry>, Box<dyn std::error
 }
 ```
 
-### Month 2: Practical Applications
-**Week 5-6: Traits and Generics**
-- Trait system vs interfaces
-- Generic constraints and bounds
-- Common patterns and idioms
+### 第二个月：实际应用
+**第 5-6 周：Trait 和泛型**
+- Trait 系统与接口
+- 泛型约束和界限
+- 常见模式和惯用法
 
-**Week 7-8: Async Programming and Concurrency**
-- `async`/`await` similarities and differences
-- Channels for communication
-- Thread safety guarantees
+**第 7-8 周：异步编程和并发**
+- `async`/`await` 的异同
+- 用于通信的 Channel
+- 线程安全保证
 
-**Recommended projects:**
+**推荐项目：**
 ```rust
 // Week 5-6: Generic data processor
 trait DataProcessor<T> {
@@ -326,18 +326,17 @@ async fn fetch_and_process_data(urls: Vec<&str>) -> Result<(), Box<dyn std::erro
 }
 ```
 
-### Month 3+: Production Integration
-**Week 9-12: Real Project Work**
-- Choose a non-critical component to rewrite
-- Implement comprehensive error handling
-- Add logging, metrics, and testing
-- Performance profiling and optimization
+### 第三个月及以后：生产级集成
+**第 9-12 周：实际项目工作**
+- 选择一个非关键组件进行重写
+- 实现全面的错误处理
+- 添加日志、指标和测试
+- 性能分析和优化
 
-**Ongoing: Team Review and Mentoring**
-- Code reviews focusing on Rust idioms
-- Pair programming sessions
-- Knowledge sharing sessions
+**持续：团队评审和指导**
+- 聚焦 Rust 惯用法的代码评审
+- 结对编程会话
+- 知识分享会话
 
 ***
-
 
