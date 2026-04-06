@@ -1,7 +1,7 @@
 [book]
 title = "Rust工程实践"
 authors = ["Rust Training Team"]
-language = "en"
+language = "zh-CN"
 src = "src"
 
 [build]
@@ -20,9 +20,9 @@ command = "mdbook-mermaid"
 editable = true
 line-numbers = true
 
-[output.epub]
-curly-quotes = true
-footnote-backrefs = true
-no-section-label = false
-use-default-css = true
-additional-css = ["src/epub.css"]
+# [output.epub]
+# curly-quotes = true
+# footnote-backrefs = true
+# no-section-label = false
+# use-default-css = true
+# additional-css = ["src/epub.css"]

@@ -1,7 +1,7 @@
 [book]
 title = "C/C++程序员的Rust"
 authors = ["Rust Training Team"]
-language = "en"
+language = "zh-CN"
 src = "src"
 
 [build]
